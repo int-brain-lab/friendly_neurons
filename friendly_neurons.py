@@ -3,7 +3,7 @@ from oneibl.one import ONE
 import alf.io as ioalf
 import ibllib.plots as iblplt
 from pathlib import Path
-import random
+import brainbox.io.one as bbone
 import brainbox as bb
 import numpy as np
 from sklearn import manifold
@@ -35,7 +35,6 @@ def community_detection(
     visual=False,
     start="starts",
     end="ends",
-    path=None,
 ):
     """
     Function:
@@ -54,16 +53,17 @@ def community_detection(
 
     Return:
     partition: ig graph vertex partition object
-    partition_dictionary: a dictionary with keys for each community and sets as values with the vertices that belong to that community
-
+    partition_dictionary: a dictionary with keys for each community and sets as values with the indices of the clusters that belong to that community
+    region_dict: similar to partition dictionary, but replaces each cluster with the region it belongs to
+    
     Example:
     without a know path:
     >>>community_detection(
             exp_ID,
             visual=True,
             probe="probe00",
-            start="stimulus",
-            end="responses",
+            start="stimOn_times",
+            end="response_times",
         )
     with a known path "\\directory\\": 
         community_detection(
@@ -71,20 +71,21 @@ def community_detection(
             visual=True,
             path="\\directory\\"
             probe="probe00",
-            start="stimulus",
-            end="responses",
+            start="stimOn_times",
+            end="response_times",
         )
 
 
     """
 
-    spikes, clusters, trials = loading_data(eID, probe, path)
+    spikes, clusters, trials, locations = loading_data(eID, probe)
     starts, ends = section_trial(start, end, trials)
     partition = community_detections_helper(
         spikes, clusters, starts, ends, bin, visual, sensitivity
     )
     partition_dictionary = dictionary_from_communities(partition)
-    return partition, partition_dictionary
+    region_dict = location_dictionary(partition_dictionary, locations)
+    return partition, partition_dictionary, region_dict
 
 
 def section_trial(start, end, trials):
@@ -94,40 +95,36 @@ def section_trial(start, end, trials):
 
 
     Parameters:
-    eID: the ID of the experiment
-    probe:the probe for the analysis or the word "both" for both probes
+    start: key of the dictionary in trials or start for the start of the interval
+    end:key of the dictionary in trials or end for the end of the interval
+    trials: dictionary from the trials object
 
 
     Return:
-    spikes: an array with the times of all the spikes
-    clusters: an array with a label for each cluster
-    trials: a 'trial' object from the IBLLIB library
+    starts: time series corresponding to the start of the interval
+    ends:time series corresponding to the end of the interval
 
     """
     starts = None
     ends = None
     if start == "starts":
         starts = trials["intervals"][:, 0]
-    elif start == "stimulus":
-        starts = trials["stimOn_times"]
-    elif start == "responses":
-        starts = trials["response_times"]
+    elif start in trials:
+        starts = trials[start]
     else:
         raise Exception("Non possible starts.")
 
     if end == "stops":
         ends = trials["intervals"][:, 1]
-    elif end == "responses":
-        ends = trials["response_times"]
-    elif end == "stimulus":
-        ends = trials["stimOn_times"]
+    elif end in trials:
+        ends = trials[end]
     else:
         raise Exception("Non possible ends.")
 
     return starts, ends
 
 
-def loading_data(eID, probe, path):
+def loading_data(eID, probe):
     """
     Function:
     The function connects with the database and gets the objects from that experiment
@@ -142,30 +139,22 @@ def loading_data(eID, probe, path):
     spikes: an array with the times of all the spikes
     clusters: an array with a label for each cluster
     trials: a 'trial' object from the IBLLIB library
+    locations: a list with the size of the number of clusters 
 
     """
+    one = ONE()
+    spikes, clusters, channels = bbone.load_spike_sorting_with_channel(eID, one=one)
+    trials = one.load_object(eID, "trials")
 
-    ### Taking the brain locations and alert if the intended ones are used
-    ### make dictionary with communities
-
-    if path == None:
-        one = ONE()
-        D = one.load(eID, clobber=False, download_only=True)
-        session_path = Path(D[0]).parent
-    else:
-        session_path = path
-
-    spikes = None
-    clusters = None
-    trials = None
     if probe == "both":
-        path00 = session_path + "\probe00"
-        path01 = session_path + "\probe01"
-        trials = ioalf.load_object(session_path, "_ibl_trials")
-        spikes0 = ioalf.load_object(path00, "spikes.times")["times"]
-        clusters0 = ioalf.load_object(path00, "spikes.clusters")["clusters"]
-        spikes1 = ioalf.load_object(path01, "spikes.times")["times"]
-        clusters1 = ioalf.load_object(path01, "spikes.clusters")["clusters"]
+
+        spikes0 = spikes["probe00"]["times"]
+        clusters0 = spikes["probe00"]["clusters"]
+        location0 = clusters["probe00"]["acronym"]
+        spikes1 = spikes["probe01"]["times"]
+        clusters1 = spikes["probe01"]["clusters"]
+        location1 = clusters["probe01"]["acronym"]
+        location = location0 + location1
         num_clusters = np.max(clusters0) + 1 - np.min(clusters0)
         clusters1 += num_clusters
         i1 = 0
@@ -183,20 +172,12 @@ def loading_data(eID, probe, path):
                 i2 += 1
         spikes = np.array(spikes)
         clusters = np.array(clusters)
+    else:
+        location = clusters[probe]["acronym"]
+        clusters = spikes[probe]["clusters"]
+        spikes = spikes[probe]["times"]
 
-    elif probe == "probe00":
-        path00 = session_path + "\probe00"
-        spikes = ioalf.load_object(path00, "spikes.times")["times"]
-        clusters = ioalf.load_object(path00, "spikes.clusters")["clusters"]
-        trials = ioalf.load_object(session_path, "_ibl_trials")
-
-    elif probe == "probe01":
-        path01 = session_path + "\probe01"
-        spikes = ioalf.load_object(path00, "spikes.times")["times"]
-        clusters = ioalf.load_object(path00, "spikes.clusters")["clusters"]
-        trials = ioalf.load_object(session_path, "_ibl_trials")
-
-    return spikes, clusters, trials
+    return spikes, clusters, trials, location
 
 
 def dictionary_from_communities(partition):
@@ -220,6 +201,27 @@ def dictionary_from_communities(partition):
         else:
             community[member[i]] = set([vertices[i]])
     return community
+
+
+def location_dictionary(partition_dict, cluster_region):
+    """
+ 
+
+    Parameters:
+    partition: partition dictionary with each community and the number of clusters
+
+    Returns:
+
+    community: a dictionary with keys for each community and sets as values with the vertices that belong to that community
+    """
+    region_dict = dict()
+    for i in partition_dict:
+        region_set = set()
+        for j in partition_dict[i]:
+            region_set.add(cluster_region[j])
+
+        region_dict[i] = region_set
+    return region_dict
 
 
 def community_detections_helper(
@@ -260,17 +262,17 @@ def community_detections_helper(
 
 
         """
-        #cluster = [13, 53, 270]
-        #for i in cluster:
+        # cluster = [13, 53, 270]
+        # for i in cluster:
         #    plt.plot(spikes_matrix[i, :])
         #    plt.title("Spike count for cluster {}".format(i))
         #    plt.xlabel("bins ({} s each)".format(bins))
         #    plt.ylabel("number of spikes")
         #    plt.show()
 
-        #sns.heatmap(correlation_matrix_original, square=True)
-        #plt.title("Trial duration correlations (stim onset to reaching target)")
-        #plt.show()
+        # sns.heatmap(correlation_matrix_original, square=True)
+        # plt.title("Trial duration correlations (stim onset to reaching target)")
+        # plt.show()
 
         visual_style1 = {}
         f = lambda x: x if x > 0 else 0
@@ -278,7 +280,7 @@ def community_detections_helper(
         visual_style1["layout"] = "circle"
         visual_style1["labels"] = True
         visual_style1["vertex_size"] = 20
-        visual_style1["vertex_color"] = 'moccasin'
+        visual_style1["vertex_color"] = "moccasin"
         plot(neuron_graph, **visual_style1)
         visual_style = {}
         f = lambda x: x if x > 0 else 0
@@ -303,9 +305,15 @@ def community_detections_helper(
         correlation_matrix.tolist(), mode=ADJ_UNDIRECTED
     )
     neuron_graph.vs["label"] = [f"{i}" for i in range(np.max(clusters))]
-    # partition = la.RBERVertexPartition(neuron_graph, resolution_parameter=sensitivity)
-    # optimiser = la.Optimiser()
-    # optimiser.optimise_partition(partition)
+    if not sensitivity == 1:
+        partition = la.RBConfigurationVertexPartition(
+            neuron_graph, resolution_parameter=sensitivity
+        )
+        optimiser = la.Optimiser()
+        optimiser.optimise_partition(partition)
+    else:
+        partition = la.find_partition(neuron_graph, la.ModularityVertexPartition)
+
     partition = la.find_partition(neuron_graph, la.ModularityVertexPartition)
 
     visualize() if visual else None
@@ -352,31 +360,25 @@ if __name__ == "__main__":
 
     print(
         community_detection(
-            exp_ID,
-            visual=True,
-            probe="probe00",
-            path=path_e,
-            start="starts",
-            end="stimulus",
-        )[1]
+            exp_ID, visual=True, probe="probe00", start="starts", end="stimOn_times",
+        )[2]
+    )
+    print(
+        community_detection(
+            exp_ID, visual=True, probe="both", start="starts", end="stimOn_times",
+        )[2]
     )
     print(
         community_detection(
             exp_ID,
             visual=True,
             probe="probe00",
-            path=path_e,
-            start="stimulus",
-            end="responses",
-        )[1]
+            start="stimOn_times",
+            end="response_times",
+        )[2]
     )
     print(
         community_detection(
-            exp_ID,
-            visual=True,
-            probe="probe00",
-            path=path_e,
-            start="responses",
-            end="stops",
-        )[1]
+            exp_ID, visual=True, probe="probe00", start="response_times", end="stops",
+        )[2]
     )
