@@ -33,8 +33,10 @@ def community_detection(
     bin=0.02,
     sensitivity=1,
     visual=False,
-    start="starts",
-    end="ends",
+    feedbackType=None,
+    user_start="trial_start",
+    user_end="trial_end",
+    one=None,
 ):
     """
     Function:
@@ -47,13 +49,16 @@ def community_detection(
     bin: the size of the bin
     sensitivity: the sensibility parameter for the leiden algorithm
     visual: a boolean on whether visualization is wanted
+    feedbackType: value for feedback wanted
     starts: the name of the type of start intervals
     ends: the name of the type of end intervals
 
 
+
     Return:
     partition: ig graph vertex partition object
-    partition_dictionary: a dictionary with keys for each community and sets as values with the indices of the clusters that belong to that community
+    partition_dictionary: a dictionary with keys for each community and sets as values with the indices of the clusters that belong to that community, and the key
+    locations for a list of the locations for each cluster
     region_dict: similar to partition dictionary, but replaces each cluster with the region it belongs to
     
     Example:
@@ -78,17 +83,18 @@ def community_detection(
 
     """
 
-    spikes, clusters, trials, locations = loading_data(eID, probe)
-    starts, ends = section_trial(start, end, trials)
+    spikes, clusters, trials, locations = loading_data(eID, probe, one)
+    starts, ends = section_trial(user_start, user_end, trials, feedbackType)
     partition = community_detections_helper(
         spikes, clusters, starts, ends, bin, visual, sensitivity
     )
     partition_dictionary = dictionary_from_communities(partition)
     region_dict = location_dictionary(partition_dictionary, locations)
+    partition_dictionary["locations"] = locations
     return partition, partition_dictionary, region_dict
 
 
-def section_trial(start, end, trials):
+def section_trial(user_start, user_end, trials, feedbackType):
     """
     Function:
     The function connects with the database and gets the objects from that experiment
@@ -107,24 +113,30 @@ def section_trial(start, end, trials):
     """
     starts = None
     ends = None
-    if start == "starts":
+    if user_start == "trial_start":
         starts = trials["intervals"][:, 0]
-    elif start in trials:
-        starts = trials[start]
+    elif user_start in trials:
+        starts = trials[user_start]
     else:
         raise Exception("Non possible starts.")
 
-    if end == "stops":
+    if user_end == "trial_end":
         ends = trials["intervals"][:, 1]
-    elif end in trials:
-        ends = trials[end]
+    elif user_end in trials:
+        ends = trials[user_end]
     else:
         raise Exception("Non possible ends.")
+    if feedbackType == None:
+        return starts, ends
+    else:
+        fbTypes = trials["feedbackType"]
+        temp_indices = np.where(fbTypes == feedbackType)[0]
+        starts = starts[temp_indices]
+        ends = ends[temp_indices]
+        return starts, ends
 
-    return starts, ends
 
-
-def loading_data(eID, probe):
+def loading_data(eID, probe, one):
     """
     Function:
     The function connects with the database and gets the objects from that experiment
@@ -142,9 +154,13 @@ def loading_data(eID, probe):
     locations: a list with the size of the number of clusters 
 
     """
-    one = ONE()
+    if one == None:
+        one = ONE()
+
     spikes, clusters, channels = bbone.load_spike_sorting_with_channel(eID, one=one)
-    trials = one.load_object(eID, "trials")
+    D = one.load(eID, clobber=False, download_only=True)
+    session_path = Path(D.local_path[0]).parent.parent
+    trials = ioalf.load_object(session_path, "trials")
 
     if probe == "both":
 
@@ -154,7 +170,7 @@ def loading_data(eID, probe):
         spikes1 = spikes["probe01"]["times"]
         clusters1 = spikes["probe01"]["clusters"]
         location1 = clusters["probe01"]["acronym"]
-        location = location0 + location1
+        location = np.concatenate((location0, location1))
         num_clusters = np.max(clusters0) + 1 - np.min(clusters0)
         clusters1 += num_clusters
         i1 = 0
@@ -305,10 +321,15 @@ def community_detections_helper(
         correlation_matrix.tolist(), mode=ADJ_UNDIRECTED
     )
     neuron_graph.vs["label"] = [f"{i}" for i in range(np.max(clusters))]
-    if not sensitivity == 1:
+    if sensitivity != 1:
+
         partition = la.RBConfigurationVertexPartition(
             neuron_graph, resolution_parameter=sensitivity
         )
+        # partition = la.CPMVertexPartition(
+        #    neuron_graph, resolution_parameter=sensitivity
+        # )
+
         optimiser = la.Optimiser()
         optimiser.optimise_partition(partition)
     else:
@@ -356,16 +377,25 @@ def main():
 
 if __name__ == "__main__":
     exp_ID = "ecb5520d-1358-434c-95ec-93687ecd1396"
-    path_e = "C:\\Users\\mitadm\\OneDrive - Massachusetts Institute of Technology\\MIT\\Summer\\Network UROP\\ibllib\\ibllib\\churchlandlab\\Subjects\\CSHL051\\2020-02-05\\001\\alf\\"
 
     print(
         community_detection(
-            exp_ID, visual=True, probe="probe00", start="starts", end="stimOn_times",
+            exp_ID,
+            visual=True,
+            probe="probe00",
+            user_start="trial_start",
+            user_end="stimOn_times",
         )[2]
     )
+
     print(
         community_detection(
-            exp_ID, visual=True, probe="both", start="starts", end="stimOn_times",
+            exp_ID,
+            visual=True,
+            probe="probe00",
+            user_start="trial_start",
+            feedbackType=1,
+            user_end="stimOn_times",
         )[2]
     )
     print(
@@ -373,12 +403,36 @@ if __name__ == "__main__":
             exp_ID,
             visual=True,
             probe="probe00",
-            start="stimOn_times",
-            end="response_times",
+            user_start="trial_start",
+            feedbackType=-1,
+            user_end="stimOn_times",
+        )[2]
+    )
+
+    print(
+        community_detection(
+            exp_ID,
+            visual=True,
+            probe="both",
+            user_start="trial_start",
+            user_end="stimOn_times",
         )[2]
     )
     print(
         community_detection(
-            exp_ID, visual=True, probe="probe00", start="response_times", end="stops",
+            exp_ID,
+            visual=True,
+            probe="probe00",
+            user_start="stimOn_times",
+            user_end="response_times",
+        )[2]
+    )
+    print(
+        community_detection(
+            exp_ID,
+            visual=True,
+            probe="probe00",
+            user_start="response_times",
+            user_end="trial_end",
         )[2]
     )
