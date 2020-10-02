@@ -58,8 +58,8 @@ def community_detection(
     Return:
     partition: ig graph vertex partition object
     partition_dictionary: a dictionary with keys for each community and sets as values with the indices of the clusters that belong to that community, and the key
-    locations for a list of the locations for each cluster
-    region_dict: similar to partition dictionary, but replaces each cluster with the region it belongs to
+    locations: a list of the locations for each cluster
+    
     
     Example:
     without a know path:
@@ -89,9 +89,68 @@ def community_detection(
         spikes, clusters, starts, ends, bin, visual, sensitivity
     )
     partition_dictionary = dictionary_from_communities(partition)
+    return partition, partition_dictionary, locations
+
+def brain_region( eID,
+    probe="both",
+    bin=0.02,
+    sensitivity=1,
+    visual=False,
+    feedbackType=None,
+    user_start="trial_start",
+    user_end="trial_end",
+    one=None,):
+    """
+    Function:
+    Takes an experiment ID and makes community detection analysis 
+
+
+    Parameters:
+    eID: experiment ID 
+    probe: name of the probe wanted or both for both probes
+    bin: the size of the bin
+    sensitivity: the sensibility parameter for the leiden algorithm
+    visual: a boolean on whether visualization is wanted
+    feedbackType: value for feedback wanted
+    starts: the name of the type of start intervals
+    ends: the name of the type of end intervals
+
+
+
+    Return:
+    partition: ig graph vertex partition object
+    partition_dictionary: a dictionary with keys for each community and sets as values with the indices of the clusters that belong to that community, and the key
+    region_dict: dictionary keyed by community number and value of a dictionary with the names of the brain regions of that community and their frequency
+    locations: a list of the locations for each cluster
+    
+    
+    Example:
+    without a know path:
+    >>>community_detection(
+            exp_ID,
+            visual=True,
+            probe="probe00",
+            start="stimOn_times",
+            end="response_times",
+        )
+    with a known path "\\directory\\": 
+        community_detection(
+            exp_ID,
+            visual=True,
+            path="\\directory\\"
+            probe="probe00",
+            start="stimOn_times",
+            end="response_times",
+        )
+
+
+    """
+
+
+    partition, partition_dictionary, locations= community_detection(eID,probe,bin,sensitivity,visual,feedbackType,user_start,user_end,one)
     region_dict = location_dictionary(partition_dictionary, locations)
-    partition_dictionary["locations"] = locations
-    return partition, partition_dictionary, region_dict
+
+    return partition, partition_dictionary, region_dict, locations
 
 
 def section_trial(user_start, user_end, trials, feedbackType):
@@ -230,14 +289,21 @@ def location_dictionary(partition_dict, cluster_region):
 
     community: a dictionary with keys for each community and sets as values with the vertices that belong to that community
     """
-    region_dict = dict()
+    regions_dict = dict()
     for i in partition_dict:
-        region_set = set()
+        section_dict = dict()
         for j in partition_dict[i]:
-            region_set.add(cluster_region[j])
+            temp_name=cluster_region[j]
+            if temp_name in section_dict:
+                section_dict[temp_name]+=1
+            else:
+                section_dict[temp_name]=1
+           
 
-        region_dict[i] = region_set
-    return region_dict
+        regions_dict[i] = section_dict
+    return regions_dict
+
+
 
 
 def community_detections_helper(
@@ -313,7 +379,8 @@ def community_detections_helper(
     spikes_matrix = bb.processing.bincount2D(
         spikes_interval, clusters_interval, xbin=bins
     )[0]
-    correlation_matrix_original = np.corrcoef(spikes_matrix)
+    spikes_matrix_fixed=addition_of_empty_neurons(spikes_matrix,clusters,clusters_interval)
+    correlation_matrix_original = np.corrcoef(spikes_matrix_fixed)
     correlation_matrix = correlation_matrix_original[:, :]
     correlation_matrix[correlation_matrix < 0] = 0
     np.fill_diagonal(correlation_matrix, 0)
@@ -340,6 +407,38 @@ def community_detections_helper(
     visualize() if visual else None
 
     return partition
+
+def addition_of_empty_neurons(spikes_matrix,clusters,clusters_interval):
+    """
+
+
+    """
+
+    present_clusters=[int(i) for i in set(clusters_interval)]
+    present_clusters_set=set(present_clusters)
+    present_clusters.sort()
+
+    n_clusters= int(max(clusters))+1
+    k_spikes=len(spikes_matrix[0][:])
+    spikes_matrix_fixed=None
+    k=0
+    for j in range(n_clusters):
+        if j==0:
+            if j in present_clusters_set: 
+                spikes_matrix_fixed=np.array([spikes_matrix[k][:]])
+                k+=1
+            else: 
+                spikes_matrix_fixed=np.array([np.zeros(k_spikes)])
+        else:
+            if j in present_clusters_set: 
+                spikes_matrix_fixed=np.concatenate((spikes_matrix_fixed,np.array([spikes_matrix[k][:]])))
+                k+=1
+            else: 
+                spikes_matrix_fixed=np.concatenate((spikes_matrix_fixed,np.array([np.zeros(k_spikes)])))
+    return spikes_matrix_fixed
+
+
+
 
 
 def interval_selection(x, y, starts, ends):
