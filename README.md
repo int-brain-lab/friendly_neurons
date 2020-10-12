@@ -1,8 +1,7 @@
 # friendly_neurons
-Community Detection for spike data
+Community detection for IBL ephys data
 
+This package creates a graph structure from the spike time series of the clusters, and then detects communities using Leiden algorithm for community detection. Visualization is opional. 
 
-This package is meant two create a graph from the spike time series of the clusters, and it makes
-a community detection. 
-
-Contact: asantoss@mit.edu or leenoy@uw.edu
+Contact: Alessanro Santos: asantoss@mit.edu 
+         Leenoy Meshulam: leenoy@uw.edu
