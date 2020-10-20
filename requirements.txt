@@ -1,0 +1,4 @@
+ibllib
+igraph
+leidenalg
+flake8
