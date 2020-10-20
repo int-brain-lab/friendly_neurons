@@ -1,36 +1,21 @@
-import json
-from oneibl.one import ONE
-import alf.io as ioalf
-import ibllib.plots as iblplt
 from pathlib import Path
-import brainbox.io.one as bbone
+
+import alf.io as ioalf
 import brainbox as bb
-import numpy as np
-from sklearn import manifold
-from mpl_toolkits.mplot3d import Axes3D
-from sklearn.manifold import TSNE
-from sklearn.preprocessing import StandardScaler
-import numpy.ma as ma
-import seaborn as sns
-import collections
-from pylab import *
+import brainbox.io.one as bbone
+import igraph as ig
 
 ### for community detection
 import leidenalg as la
-import igraph as ig
-from igraph import *
-
-
-from brainbox.processing import bincount2D
-import matplotlib.pyplot as plt
-import ibllib.plots as iblplt
-from pathlib import Path
+import numpy as np
+from oneibl.one import ONE
+import pylab
 
 
 def community_detection(
     eID,
     probe="both",
-    bin=0.02,
+    bin_=0.02,
     sensitivity=1,
     visual=False,
     feedbackType=None,
@@ -40,27 +25,24 @@ def community_detection(
 ):
     """
     Function:
-    Takes an experiment ID and makes community detection analysis 
-
+    Takes an experiment ID and makes community detection analysis
 
     Parameters:
-    eID: experiment ID 
+    eID: experiment ID
     probe: name of the probe wanted or both for both probes
-    bin: the size of the bin
+    bin_: the size of the bin
     sensitivity: the sensibility parameter for the leiden algorithm
     visual: a boolean on whether visualization is wanted
     feedbackType: value for feedback wanted
     starts: the name of the type of start intervals
     ends: the name of the type of end intervals
 
-
-
     Return:
     partition: ig graph vertex partition object
-    partition_dictionary: a dictionary with keys for each community and sets as values with the indices of the clusters that belong to that community, and the key
+    partition_dictionary: a dictionary with keys for each community and sets as
+    values with the indices of the clusters that belong to that community, and the key
     locations: a list of the locations for each cluster
-    
-    
+
     Example:
     without a know path:
     >>>community_detection(
@@ -70,7 +52,7 @@ def community_detection(
             start="stimOn_times",
             end="response_times",
         )
-    with a known path "\\directory\\": 
+    with a known path "\\directory\\":
         community_detection(
             exp_ID,
             visual=True,
@@ -86,44 +68,47 @@ def community_detection(
     spikes, clusters, trials, locations = loading_data(eID, probe, one)
     starts, ends = section_trial(user_start, user_end, trials, feedbackType)
     partition = community_detections_helper(
-        spikes, clusters, starts, ends, bin, visual, sensitivity
+        spikes, clusters, starts, ends, bin_, visual, sensitivity
     )
     partition_dictionary = dictionary_from_communities(partition)
     return partition, partition_dictionary, locations
 
-def brain_region( eID,
+
+def brain_region(
+    eID,
     probe="both",
-    bin=0.02,
+    bin_=0.02,
     sensitivity=1,
     visual=False,
     feedbackType=None,
     user_start="trial_start",
     user_end="trial_end",
-    one=None,):
+    one=None,
+):
     """
     Function:
-    Takes an experiment ID and makes community detection analysis 
-
+    Takes an experiment ID and makes community detection analysis
 
     Parameters:
-    eID: experiment ID 
+    eID: experiment ID
     probe: name of the probe wanted or both for both probes
-    bin: the size of the bin
+    bin_: the size of the bin
     sensitivity: the sensibility parameter for the leiden algorithm
     visual: a boolean on whether visualization is wanted
     feedbackType: value for feedback wanted
     starts: the name of the type of start intervals
     ends: the name of the type of end intervals
 
-
-
     Return:
     partition: ig graph vertex partition object
-    partition_dictionary: a dictionary with keys for each community and sets as values with the indices of the clusters that belong to that community, and the key
-    region_dict: dictionary keyed by community number and value of a dictionary with the names of the brain regions of that community and their frequency
-    locations: a list of the locations for each cluster
-    
-    
+    partition_dictionary:   a dictionary with keys for each community and sets
+                            as values  with the indices of the clusters that
+                            belong to that community, and the key
+    region_dict:    dictionary keyed by community number and value of a
+                    dictionary with the names of the brain regions of that
+                    community and their frequency
+    locations:  a list of the locations for each cluster
+
     Example:
     without a know path:
     >>>community_detection(
@@ -133,7 +118,7 @@ def brain_region( eID,
             start="stimOn_times",
             end="response_times",
         )
-    with a known path "\\directory\\": 
+    with a known path "\\directory\\":
         community_detection(
             exp_ID,
             visual=True,
@@ -146,8 +131,9 @@ def brain_region( eID,
 
     """
 
-
-    partition, partition_dictionary, locations= community_detection(eID,probe,bin,sensitivity,visual,feedbackType,user_start,user_end,one)
+    partition, partition_dictionary, locations = community_detection(
+        eID, probe, bin_, sensitivity, visual, feedbackType, user_start, user_end, one
+    )
     region_dict = location_dictionary(partition_dictionary, locations)
 
     return partition, partition_dictionary, region_dict, locations
@@ -185,7 +171,7 @@ def section_trial(user_start, user_end, trials, feedbackType):
         ends = trials[user_end]
     else:
         raise Exception("Non possible ends.")
-    if feedbackType == None:
+    if feedbackType is None:
         return starts, ends
     else:
         fbTypes = trials["feedbackType"]
@@ -210,10 +196,10 @@ def loading_data(eID, probe, one):
     spikes: an array with the times of all the spikes
     clusters: an array with a label for each cluster
     trials: a 'trial' object from the IBLLIB library
-    locations: a list with the size of the number of clusters 
+    locations: a list with the size of the number of clusters
 
     """
-    if one == None:
+    if one is None:
         one = ONE()
 
     spikes, clusters, channels = bbone.load_spike_sorting_with_channel(eID, one=one)
@@ -257,15 +243,12 @@ def loading_data(eID, probe, one):
 
 def dictionary_from_communities(partition):
     """
- 
-
     Parameters:
     partition: VertexPartition type object
 
-
     Returns:
-
-    community: a dictionary with keys for each community and sets as values with the vertices that belong to that community
+    community: a dictionary with keys for each community and sets as values with
+    the vertices that belong to that community
     """
     community = dict()
     member = partition.membership
@@ -280,41 +263,33 @@ def dictionary_from_communities(partition):
 
 def location_dictionary(partition_dict, cluster_region):
     """
- 
-
     Parameters:
     partition: partition dictionary with each community and the number of clusters
 
     Returns:
-
-    community: a dictionary with keys for each community and sets as values with the vertices that belong to that community
+    community: a dictionary with keys for each community and sets as values with
+    the vertices that belong to that community
     """
     regions_dict = dict()
     for i in partition_dict:
         section_dict = dict()
         for j in partition_dict[i]:
-            temp_name=cluster_region[j]
+            temp_name = cluster_region[j]
             if temp_name in section_dict:
-                section_dict[temp_name]+=1
+                section_dict[temp_name] += 1
             else:
-                section_dict[temp_name]=1
-           
+                section_dict[temp_name] = 1
 
         regions_dict[i] = section_dict
     return regions_dict
 
 
-
-
-def community_detections_helper(
-    spikes, clusters, starts, ends, bins, visual, sensitivity
-):
+def community_detections_helper(spikes, clusters, starts, ends, bins, visual, sensitivity):
     """
     Function:
-    cleaves the time array for the spikes such that only intervals of interest are 
-    compiled into a time series array from which a correlation is gotten. 
-    From this correlation a graph is made on which the Leiden community detection is run. 
-
+    cleaves the time array for the spikes such that only intervals of interest are
+    compiled into a time series array from which a correlation is gotten.
+    From this correlation a graph is made on which the Leiden community detection is run.
 
     Parameters:
     spikes: array with times for all the spikes
@@ -324,25 +299,18 @@ def community_detections_helper(
     bins: the size of the bins
     visual: boolean that marks whether visuals are wanted
 
-
-
     Return:
     partition: "vertexpartition" object from the igraph library
-
-
     """
 
     def visualize():
         """
-        Function:
-        Plots graphs for all intermediate data.
-    ````Parameters:
-        None
-        Return 
-        None
-
-
-
+            Function:
+            Plots graphs for all intermediate data.
+        ````Parameters:
+            None
+            Return
+            None
         """
         # cluster = [13, 53, 270]
         # for i in cluster:
@@ -372,21 +340,15 @@ def community_detections_helper(
         visual_style["vertex_size"] = 20
         plot(partition, **visual_style)
 
-    spikes_interval, clusters_interval = interval_selection(
-        spikes, clusters, starts, ends
-    )
+    spikes_interval, clusters_interval = interval_selection(spikes, clusters, starts, ends)
 
-    spikes_matrix = bb.processing.bincount2D(
-        spikes_interval, clusters_interval, xbin=bins
-    )[0]
-    spikes_matrix_fixed=addition_of_empty_neurons(spikes_matrix,clusters,clusters_interval)
+    spikes_matrix = bb.processing.bincount2D(spikes_interval, clusters_interval, xbin=bins)[0]
+    spikes_matrix_fixed = addition_of_empty_neurons(spikes_matrix, clusters, clusters_interval)
     correlation_matrix_original = np.corrcoef(spikes_matrix_fixed)
     correlation_matrix = correlation_matrix_original[:, :]
     correlation_matrix[correlation_matrix < 0] = 0
     np.fill_diagonal(correlation_matrix, 0)
-    neuron_graph = ig.Graph.Weighted_Adjacency(
-        correlation_matrix.tolist(), mode=ADJ_UNDIRECTED
-    )
+    neuron_graph = ig.Graph.Weighted_Adjacency(correlation_matrix.tolist(), mode=ADJ_UNDIRECTED)
     neuron_graph.vs["label"] = [f"{i}" for i in range(np.max(clusters))]
     if sensitivity != 1:
 
@@ -404,41 +366,41 @@ def community_detections_helper(
 
     partition = la.find_partition(neuron_graph, la.ModularityVertexPartition)
 
-    visualize() if visual else None
+    if visual:
+        visualize()
 
     return partition
 
-def addition_of_empty_neurons(spikes_matrix,clusters,clusters_interval):
-    """
 
+def addition_of_empty_neurons(spikes_matrix, clusters, clusters_interval):
+    """"""
 
-    """
-
-    present_clusters=[int(i) for i in set(clusters_interval)]
-    present_clusters_set=set(present_clusters)
+    present_clusters = [int(i) for i in set(clusters_interval)]
+    present_clusters_set = set(present_clusters)
     present_clusters.sort()
 
-    n_clusters= int(max(clusters))+1
-    k_spikes=len(spikes_matrix[0][:])
-    spikes_matrix_fixed=None
-    k=0
+    n_clusters = int(max(clusters)) + 1
+    k_spikes = len(spikes_matrix[0][:])
+    spikes_matrix_fixed = None
+    k = 0
     for j in range(n_clusters):
-        if j==0:
-            if j in present_clusters_set: 
-                spikes_matrix_fixed=np.array([spikes_matrix[k][:]])
-                k+=1
-            else: 
-                spikes_matrix_fixed=np.array([np.zeros(k_spikes)])
+        if j == 0:
+            if j in present_clusters_set:
+                spikes_matrix_fixed = np.array([spikes_matrix[k][:]])
+                k += 1
+            else:
+                spikes_matrix_fixed = np.array([np.zeros(k_spikes)])
         else:
-            if j in present_clusters_set: 
-                spikes_matrix_fixed=np.concatenate((spikes_matrix_fixed,np.array([spikes_matrix[k][:]])))
-                k+=1
-            else: 
-                spikes_matrix_fixed=np.concatenate((spikes_matrix_fixed,np.array([np.zeros(k_spikes)])))
+            if j in present_clusters_set:
+                spikes_matrix_fixed = np.concatenate(
+                    (spikes_matrix_fixed, np.array([spikes_matrix[k][:]]))
+                )
+                k += 1
+            else:
+                spikes_matrix_fixed = np.concatenate(
+                    (spikes_matrix_fixed, np.array([np.zeros(k_spikes)]))
+                )
     return spikes_matrix_fixed
-
-
-
 
 
 def interval_selection(x, y, starts, ends):
