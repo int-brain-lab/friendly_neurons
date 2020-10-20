@@ -1,5 +1,4 @@
 from pathlib import Path
-
 import alf.io as ioalf
 import brainbox as bb
 import brainbox.io.one as bbone
@@ -312,18 +311,7 @@ def community_detections_helper(spikes, clusters, starts, ends, bins, visual, se
             Return
             None
         """
-        # cluster = [13, 53, 270]
-        # for i in cluster:
-        #    plt.plot(spikes_matrix[i, :])
-        #    plt.title("Spike count for cluster {}".format(i))
-        #    plt.xlabel("bins ({} s each)".format(bins))
-        #    plt.ylabel("number of spikes")
-        #    plt.show()
-
-        # sns.heatmap(correlation_matrix_original, square=True)
-        # plt.title("Trial duration correlations (stim onset to reaching target)")
-        # plt.show()
-
+     
         visual_style1 = {}
         f = lambda x: x if x > 0 else 0
         visual_style1["edge_width"] = [f(w) * 0.25 for w in neuron_graph.es["weight"]]
@@ -348,7 +336,7 @@ def community_detections_helper(spikes, clusters, starts, ends, bins, visual, se
     correlation_matrix = correlation_matrix_original[:, :]
     correlation_matrix[correlation_matrix < 0] = 0
     np.fill_diagonal(correlation_matrix, 0)
-    neuron_graph = ig.Graph.Weighted_Adjacency(correlation_matrix.tolist(), mode=ADJ_UNDIRECTED)
+    neuron_graph = ig.Graph.Weighted_Adjacency(correlation_matrix.tolist(), mode="UNDIRECTED")
     neuron_graph.vs["label"] = [f"{i}" for i in range(np.max(clusters))]
     if sensitivity != 1:
 
