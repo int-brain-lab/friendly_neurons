@@ -42,6 +42,7 @@ def community_detection(
     feedbackType=None,
     user_start="trial_start",
     user_end="trial_end",
+    data=None
     
 ):
     """
@@ -88,8 +89,11 @@ def community_detection(
 
 
     """
-
-    spikes, clusters, trials, locations = loading_DataJoint( eID , probe)
+    if bool(data):
+        spikes, clusters, trials, locations = loading_DataJoint( eID , probe)
+    else: 
+        spikes, clusters, trials, locations = data
+        
     starts, ends = section_trial(user_start, user_end, trials, feedbackType)
     partition = community_detections_helper(
         spikes, clusters, starts, ends, bin, visual, sensitivity
@@ -105,6 +109,7 @@ def brain_region( eID,
     feedbackType=None,
     user_start="trial_start",
     user_end="trial_end",
+    data=None
     ):
     """
     Function:
@@ -153,7 +158,7 @@ def brain_region( eID,
     """
 
 
-    partition, partition_dictionary, locations= community_detection(eID,probe,bin,sensitivity,visual,feedbackType,user_start,user_end)
+    partition, partition_dictionary, locations= community_detection(eID,probe,bin,sensitivity,visual,feedbackType,user_start,user_end,data=data)
     region_dict = location_dictionary(partition_dictionary, locations)
 
     return partition, partition_dictionary, region_dict, locations
