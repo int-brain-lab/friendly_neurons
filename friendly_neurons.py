@@ -1,5 +1,5 @@
 import json
-from oneibl.one import ONE
+
 import alf.io as ioalf
 import ibllib.plots as iblplt
 from pathlib import Path
@@ -25,6 +25,12 @@ from brainbox.processing import bincount2D
 import matplotlib.pyplot as plt
 import ibllib.plots as iblplt
 from pathlib import Path
+### DataJoint
+import datajoint as dj
+from ibl_pipeline import reference, subject, acquisition, behavior
+from ibl_pipeline.analyses import behavior as behavior_analyses
+from uuid import UUID
+import datetime
 
 
 def community_detection(
@@ -36,7 +42,8 @@ def community_detection(
     feedbackType=None,
     user_start="trial_start",
     user_end="trial_end",
-    one=None,
+    data=None
+    
 ):
     """
     Function:
@@ -82,8 +89,11 @@ def community_detection(
 
 
     """
-
-    spikes, clusters, trials, locations = loading_data(eID, probe, one)
+    if bool(data):
+        spikes, clusters, trials, locations = loading_DataJoint( eID , probe)
+    else: 
+        spikes, clusters, trials, locations = data
+        
     starts, ends = section_trial(user_start, user_end, trials, feedbackType)
     partition = community_detections_helper(
         spikes, clusters, starts, ends, bin, visual, sensitivity
@@ -99,7 +109,8 @@ def brain_region( eID,
     feedbackType=None,
     user_start="trial_start",
     user_end="trial_end",
-    one=None,):
+    data=None
+    ):
     """
     Function:
     Takes an experiment ID and makes community detection analysis 
@@ -147,7 +158,7 @@ def brain_region( eID,
     """
 
 
-    partition, partition_dictionary, locations= community_detection(eID,probe,bin,sensitivity,visual,feedbackType,user_start,user_end,one)
+    partition, partition_dictionary, locations= community_detection(eID,probe,bin,sensitivity,visual,feedbackType,user_start,user_end,data=data)
     region_dict = location_dictionary(partition_dictionary, locations)
 
     return partition, partition_dictionary, region_dict, locations
@@ -195,7 +206,7 @@ def section_trial(user_start, user_end, trials, feedbackType):
         return starts, ends
 
 
-def loading_data(eID, probe, one):
+def loading_DataJoint(eID, probe):
     """
     Function:
     The function connects with the database and gets the objects from that experiment
@@ -213,44 +224,30 @@ def loading_data(eID, probe, one):
     locations: a list with the size of the number of clusters 
 
     """
-    if one == None:
-        one = ONE()
-
-    spikes, clusters, channels = bbone.load_spike_sorting_with_channel(eID, one=one)
-    D = one.load(eID, clobber=False, download_only=True)
-    session_path = Path(D.local_path[0]).parent.parent
-    trials = ioalf.load_object(session_path, "trials")
-
-    if probe == "both":
-
-        spikes0 = spikes["probe00"]["times"]
-        clusters0 = spikes["probe00"]["clusters"]
-        location0 = clusters["probe00"]["acronym"]
-        spikes1 = spikes["probe01"]["times"]
-        clusters1 = spikes["probe01"]["clusters"]
-        location1 = clusters["probe01"]["acronym"]
-        location = np.concatenate((location0, location1))
-        num_clusters = np.max(clusters0) + 1 - np.min(clusters0)
-        clusters1 += num_clusters
-        i1 = 0
-        i2 = 0
-        spikes = []
-        clusters = []
-        while i1 + i2 < len(spikes0) + len(spikes1):
-            if i1 < len(spikes0) and (i2 == len(spikes1) or spikes0[i1] < spikes1[i2]):
-                spikes.append(spikes0[i1])
-                clusters.append(clusters0[i1])
-                i1 += 1
-            else:
-                spikes.append(spikes1[i2])
-                clusters.append(clusters1[i2])
-                i2 += 1
-        spikes = np.array(spikes)
-        clusters = np.array(clusters)
-    else:
-        location = clusters[probe]["acronym"]
-        clusters = spikes[probe]["clusters"]
-        spikes = spikes[probe]["times"]
+    ephys = dj.create_virtual_module('ephys', 'ibl_ephys')
+    histology = dj.create_virtual_module('histology', 'ibl_histology')
+    key_session=[{'session_uuid': UUID(eID)}]
+    key = (acquisition.Session & ephys.DefaultCluster & key_session).fetch('KEY', limit=1)
+    if probe !='both':
+        key[0]['probe_idx']=probe
+    spikes_times = (ephys.DefaultCluster & key).fetch('cluster_spikes_times')
+    i=0
+    clusters=[]
+    for spike in spikes_times:
+        clusters.append(np.full(len(spike), i, dtype=int))
+        i+=1
+    clusters=np.hstack(clusters)
+    spikes=np.hstack(spikes_times)
+    indices=[l for l in range(len(clusters))]
+    indices_sorted=sorted(indices, key=lambda x: spikes[x])
+    indices=np.array(indices_sorted)
+    clusters=clusters[indices_sorted]
+    location= ndarray.tolist((histology.ClusterBrainRegionTemp() & key).fetch('acronym'))
+    trials=dict()
+    trials["feedbackType"]=(behavior.TrialSet.Trial() & key).fetch('trial_feedback_type')
+    trials["intervals"]=np.transpose(np.vstack([(behavior.TrialSet.Trial() & key).fetch('trial_start_time'),(behavior.TrialSet.Trial() & key).fetch('trial_end_time')]))
+    trials["stimOn_times"]=(behavior.TrialSet.Trial() & key).fetch('trial_stim_on_time')
+    trials["response_times"]=(behavior.TrialSet.Trial() & key).fetch('trial_response_time')
 
     return spikes, clusters, trials, location
 
@@ -385,7 +382,7 @@ def community_detections_helper(
     correlation_matrix[correlation_matrix < 0] = 0
     np.fill_diagonal(correlation_matrix, 0)
     neuron_graph = ig.Graph.Weighted_Adjacency(
-        correlation_matrix.tolist(), mode=ADJ_UNDIRECTED
+        correlation_matrix.tolist(), mode="UNDIRECTED"
     )
     neuron_graph.vs["label"] = [f"{i}" for i in range(np.max(clusters))]
     if sensitivity != 1:
@@ -477,35 +474,36 @@ def main():
 if __name__ == "__main__":
     exp_ID = "ecb5520d-1358-434c-95ec-93687ecd1396"
 
+    
     print(
         community_detection(
             exp_ID,
             visual=True,
-            probe="probe00",
+            probe=0,
             user_start="trial_start",
             user_end="stimOn_times",
-        )[2]
+        )
     )
 
     print(
         community_detection(
             exp_ID,
             visual=True,
-            probe="probe00",
+            probe=0,
             user_start="trial_start",
             feedbackType=1,
             user_end="stimOn_times",
-        )[2]
+        )
     )
     print(
         community_detection(
             exp_ID,
             visual=True,
-            probe="probe00",
+            probe=0,
             user_start="trial_start",
             feedbackType=-1,
             user_end="stimOn_times",
-        )[2]
+        )
     )
 
     print(
@@ -515,23 +513,23 @@ if __name__ == "__main__":
             probe="both",
             user_start="trial_start",
             user_end="stimOn_times",
-        )[2]
+        )
     )
     print(
         community_detection(
             exp_ID,
             visual=True,
-            probe="probe00",
+            probe=0,
             user_start="stimOn_times",
             user_end="response_times",
-        )[2]
+        )
     )
     print(
         community_detection(
             exp_ID,
             visual=True,
-            probe="probe00",
+            probe=0,
             user_start="response_times",
             user_end="trial_end",
-        )[2]
+        )
     )
