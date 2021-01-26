@@ -2,29 +2,22 @@ import json
 
 import alf.io as ioalf
 import ibllib.plots as iblplt
-from pathlib import Path
 import brainbox.io.one as bbone
 import brainbox as bb
 import numpy as np
-from sklearn import manifold
-from mpl_toolkits.mplot3d import Axes3D
-from sklearn.manifold import TSNE
-from sklearn.preprocessing import StandardScaler
 import numpy.ma as ma
-import seaborn as sns
+
 import collections
 from pylab import *
-
 ### for community detection
 import leidenalg as la
 import igraph as ig
 from igraph import *
 
-
+### for dat analysis 
 from brainbox.processing import bincount2D
 import matplotlib.pyplot as plt
 import ibllib.plots as iblplt
-from pathlib import Path
 ### DataJoint
 import datajoint as dj
 from ibl_pipeline import reference, subject, acquisition, behavior
@@ -42,6 +35,7 @@ def community_detection(
     feedbackType=None,
     user_start="trial_start",
     user_end="trial_end",
+    region_list=[],
     data=None
     
 ):
@@ -89,8 +83,8 @@ def community_detection(
 
 
     """
-    if bool(data):
-        spikes, clusters, trials, locations = loading_DataJoint( eID , probe)
+    if not bool(data):
+        spikes, clusters, trials, locations = loading_DataJoint( eID , probe, region_list)
     else: 
         spikes, clusters, trials, locations = data
         
@@ -109,6 +103,7 @@ def brain_region( eID,
     feedbackType=None,
     user_start="trial_start",
     user_end="trial_end",
+    region_list=[],
     data=None
     ):
     """
@@ -158,7 +153,7 @@ def brain_region( eID,
     """
 
 
-    partition, partition_dictionary, locations= community_detection(eID,probe,bin,sensitivity,visual,feedbackType,user_start,user_end,data=data)
+    partition, partition_dictionary, locations= community_detection(eID,probe,bin,sensitivity,visual,feedbackType,user_start,user_end,data=data,region_list=region_list)
     region_dict = location_dictionary(partition_dictionary, locations)
 
     return partition, partition_dictionary, region_dict, locations
@@ -206,7 +201,7 @@ def section_trial(user_start, user_end, trials, feedbackType):
         return starts, ends
 
 
-def loading_DataJoint(eID, probe):
+def loading_DataJoint(eID, probe, region_list=[]):
     """
     Function:
     The function connects with the database and gets the objects from that experiment
@@ -230,7 +225,13 @@ def loading_DataJoint(eID, probe):
     key = (acquisition.Session & ephys.DefaultCluster & key_session).fetch('KEY', limit=1)
     if probe !='both':
         key[0]['probe_idx']=probe
-    spikes_times = (ephys.DefaultCluster & key).fetch('cluster_spikes_times')
+    if len(region_list)==0: 
+        spikes_times = (ephys.DefaultCluster & key).fetch('cluster_spikes_times')
+        location= ndarray.tolist((histology.ClusterBrainRegionTemp() & key).fetch('acronym'))
+    else: 
+        command_list= region_commands(region_list)
+        spikes_times = (ephys.DefaultCluster & key & (histology.ClusterBrainRegionTemp & (reference.BrainRegion() &  command_list))).fetch('cluster_spikes_times')
+        location= ndarray.tolist((histology.ClusterBrainRegionTemp & key & (reference.BrainRegion() &  command_list)).fetch('acronym'))
     i=0
     clusters=[]
     for spike in spikes_times:
@@ -242,7 +243,7 @@ def loading_DataJoint(eID, probe):
     indices_sorted=sorted(indices, key=lambda x: spikes[x])
     indices=np.array(indices_sorted)
     clusters=clusters[indices_sorted]
-    location= ndarray.tolist((histology.ClusterBrainRegionTemp() & key).fetch('acronym'))
+    
     trials=dict()
     trials["feedbackType"]=(behavior.TrialSet.Trial() & key).fetch('trial_feedback_type')
     trials["intervals"]=np.transpose(np.vstack([(behavior.TrialSet.Trial() & key).fetch('trial_start_time'),(behavior.TrialSet.Trial() & key).fetch('trial_end_time')]))
@@ -251,6 +252,12 @@ def loading_DataJoint(eID, probe):
 
     return spikes, clusters, trials, location
 
+
+def region_commands(s_list):
+    result=[]
+    for region in s_list:
+        result.append('acronym like "%'+region+'%"')
+    return result
 
 def dictionary_from_communities(partition):
     """
@@ -354,8 +361,9 @@ def community_detections_helper(
         # plt.show()
 
         visual_style1 = {}
+        edge_darkness=0.5
         f = lambda x: x if x > 0 else 0
-        visual_style1["edge_width"] = [f(w) * 0.25 for w in neuron_graph.es["weight"]]
+        visual_style1["edge_width"] = [f(w) *  edge_darkness for w in neuron_graph.es["weight"]]
         visual_style1["layout"] = "circle"
         visual_style1["labels"] = True
         visual_style1["vertex_size"] = 20
@@ -363,7 +371,7 @@ def community_detections_helper(
         plot(neuron_graph, **visual_style1)
         visual_style = {}
         f = lambda x: x if x > 0 else 0
-        visual_style["edge_width"] = [f(w) * 0.25 for w in neuron_graph.es["weight"]]
+        visual_style["edge_width"] = [f(w) *edge_darkness  for w in neuron_graph.es["weight"]]
         visual_style["layout"] = "circle"
         visual_style["labels"] = True
         visual_style["vertex_size"] = 20
@@ -473,8 +481,11 @@ def main():
 
 if __name__ == "__main__":
     exp_ID = "ecb5520d-1358-434c-95ec-93687ecd1396"
-
+    brain_areas=["VIs"]
     
+
+
+    ### Single Probe Three Time Periods ###
     print(
         community_detection(
             exp_ID,
@@ -506,11 +517,14 @@ if __name__ == "__main__":
         )
     )
 
+    ### Both Probes StimOnset ###
+
+
     print(
         community_detection(
             exp_ID,
             visual=True,
-            probe="both",
+        
             user_start="trial_start",
             user_end="stimOn_times",
         )
@@ -519,7 +533,6 @@ if __name__ == "__main__":
         community_detection(
             exp_ID,
             visual=True,
-            probe=0,
             user_start="stimOn_times",
             user_end="response_times",
         )
@@ -528,8 +541,38 @@ if __name__ == "__main__":
         community_detection(
             exp_ID,
             visual=True,
-            probe=0,
             user_start="response_times",
             user_end="trial_end",
+        )
+    )
+
+    ### Both Probes Three Time Periods Visual Area ###
+    brain_areas=["VIS"]
+    print(
+        community_detection(
+            exp_ID,
+            visual=True,
+            probe="both",
+            user_start="trial_start",
+            user_end="stimOn_times",
+            region_list=brain_areas
+        )
+    )
+    print(
+        community_detection(
+            exp_ID,
+            visual=True,
+            user_start="stimOn_times",
+            user_end="response_times",
+            region_list=brain_areas
+        )
+    )
+    print(
+        community_detection(
+            exp_ID,
+            visual=True,
+            user_start="response_times",
+            user_end="trial_end",
+            region_list=brain_areas
         )
     )
