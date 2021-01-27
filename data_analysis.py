@@ -1,7 +1,7 @@
 from friendly_neurons import *
 from ibl_pipeline import subject, acquisition, ephys, histology
 from tqdm import tqdm
-
+import datajoint as dj
 import numpy as np 
 import matplotlib.pyplot as plt
 import random
@@ -14,7 +14,15 @@ import igraph
 
 
 
-def general_analysis(exp_ID,probe, visual=False, height=1000, length=1000,feedbackType=None, base_layout=1, timeperiods=[("trial_start","stimOn_times"), ("stimOn_times", "response_times"), ("response_times", "trial_end") ], region_list=[]):
+def general_analysis(
+    exp_ID,probe, 
+    visual=False, 
+    height=1000, 
+    length=1000,
+    feedbackType=None, 
+    base_layout=1, 
+    timeperiods=[("trial_start","stimOn_times"), ("stimOn_times", "response_times"), ("response_times", "trial_end") ], 
+    region_list=[]):
     """
 
     Makes a general analysis of th three main time perios (prestimulus, during stimulus, and after the stimulus)
@@ -457,13 +465,13 @@ def visualized_3d(results, matchings,base_layout, eID, probe):
         else:
             cluster_coords.append(None)
     allegiance=[]
-    for i in results: 
-        allegiance.append([j[0] for j in belong_dictionary(i["partitions"])]
-    allegiance.append(results[0]["locations"])
-    clusters=len(cluster_coords)
+    #for i in results: 
+    #    allegiance.append([j[0] for j in belong_dictionary([i["partition"]])])
+    #allegiance.append(results[0]["locations"])
+    #clusters=len(cluster_coords)
     
-    for i in range(clusters):
-        pass
+    #for i in range(clusters):
+    #    pass
         
         
 
@@ -489,9 +497,11 @@ for k in expIDs:
         i=k[0]
         print(k[1])
         print("probe00")
+
         general_analysis(i, 0, base_layout=0)
-        general_analysis(i, 0, base_layout=0, region_list=["VIS"])
-        general_analysis(i, 0, base_layout=0, region_list=["CA1", "CA3"])
+        
+        #general_analysis(i, 0, base_layout=0, region_list=["VIS"])
+        #general_analysis(i, 0, base_layout=0, region_list=["CA1", "CA3"])
         #input("Enter your value: ") 
         #general_analysis(i, "probe00",feedbackType=1)
         #general_analysis(i, "probe00", feedbackType=0)
