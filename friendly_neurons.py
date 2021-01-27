@@ -70,7 +70,7 @@ def community_detection(
     
     Example:
     without a know path:
-    >>>community_detection(
+    >>community_detection(
             exp_ID,
             visual=True,
             probe="probe00",
@@ -137,7 +137,7 @@ def brain_region( eID,
     
     Example:
     without a know path:
-    >>>community_detection(
+    >>community_detection(
             exp_ID,
             visual=True,
             probe="probe00",
@@ -238,10 +238,13 @@ def loading_DataJoint(eID, probe):
         i+=1
     clusters=np.hstack(clusters)
     spikes=np.hstack(spikes_times)
-    indices=[l for l in range(len(clusters))]
-    indices_sorted=sorted(indices, key=lambda x: spikes[x])
-    indices=np.array(indices_sorted)
-    clusters=clusters[indices_sorted]
+    ### To speed things up
+    indices_sorted = np.argsort(spikes)
+    spikes = spikes[indices_sorted]
+    #indices=[l for l in range(len(clusters))]
+    #indices_sorted=sorted(indices, key=lambda x: spikes[x])
+    #indices=np.array(indices_sorted)
+    clusters=clusters[indices_sorted]   ### shouldn't spikes be sorted by these indices as well?
     location= ndarray.tolist((histology.ClusterBrainRegionTemp() & key).fetch('acronym'))
     trials=dict()
     trials["feedbackType"]=(behavior.TrialSet.Trial() & key).fetch('trial_feedback_type')
@@ -374,8 +377,10 @@ def community_detections_helper(
     )
 
     spikes_matrix = bb.processing.bincount2D(
-        spikes_interval, clusters_interval, xbin=bins
+        spikes_interval, clusters_interval, xbin=bins, # xlim=[0, nclusters]
     )[0]
+
+
     spikes_matrix_fixed=addition_of_empty_neurons(spikes_matrix,clusters,clusters_interval)
     correlation_matrix_original = np.corrcoef(spikes_matrix_fixed)
     correlation_matrix = correlation_matrix_original[:, :]
@@ -411,27 +416,32 @@ def addition_of_empty_neurons(spikes_matrix,clusters,clusters_interval):
 
     """
 
-    present_clusters=[int(i) for i in set(clusters_interval)]
-    present_clusters_set=set(present_clusters)
-    present_clusters.sort()
+    n_clust = np.max(clusters) + 1 #or if we get it from datajoint earlier safer
+    included_clust = np.unique(clusters_interval).astype(int)
+    spikes_matrix_fixed = np.zeros((n_clust, spikes_matrix.shape[1]))
+    spikes_matrix_fixed[included_clust, :] = spikes_matrix
 
-    n_clusters= int(max(clusters))+1
-    k_spikes=len(spikes_matrix[0][:])
-    spikes_matrix_fixed=None
-    k=0
-    for j in range(n_clusters):
-        if j==0:
-            if j in present_clusters_set: 
-                spikes_matrix_fixed=np.array([spikes_matrix[k][:]])
-                k+=1
-            else: 
-                spikes_matrix_fixed=np.array([np.zeros(k_spikes)])
-        else:
-            if j in present_clusters_set: 
-                spikes_matrix_fixed=np.concatenate((spikes_matrix_fixed,np.array([spikes_matrix[k][:]])))
-                k+=1
-            else: 
-                spikes_matrix_fixed=np.concatenate((spikes_matrix_fixed,np.array([np.zeros(k_spikes)])))
+    #present_clusters=[int(i) for i in set(clusters_interval)]
+    #present_clusters_set=set(present_clusters)
+    #present_clusters.sort()
+#
+    #n_clusters= int(max(clusters))+1
+    #k_spikes=len(spikes_matrix[0][:])
+    #spikes_matrix_fixed=None
+    #k=0
+    #for j in range(n_clusters):
+    #    if j==0:
+    #        if j in present_clusters_set:
+    #            spikes_matrix_fixed=np.array([spikes_matrix[k][:]])
+    #            k+=1
+    #        else:
+    #            spikes_matrix_fixed=np.array([np.zeros(k_spikes)])
+    #    else:
+    #        if j in present_clusters_set:
+    #            spikes_matrix_fixed=np.concatenate((spikes_matrix_fixed,np.array([spikes_matrix[k][:]])))
+    #            k+=1
+    #        else:
+    #            spikes_matrix_fixed=np.concatenate((spikes_matrix_fixed,np.array([np.zeros(k_spikes)])))
     return spikes_matrix_fixed
 
 
@@ -455,16 +465,28 @@ def interval_selection(x, y, starts, ends):
     temp_y= y variable array with the elements not belonging to the variable array
 
     """
-    if len(starts) == len(ends):
-        temp_x = []
-        temp_y = []
-        for i in range(len(starts)):
-            temp_indices = np.where((x >= starts[i]) & (x <= ends[i]))[0]
-            temp_x = np.concatenate((temp_x, x[temp_indices]))
-            temp_y = np.concatenate((temp_y, y[temp_indices]))
-        return temp_x, temp_y
-    else:
-        raise Exception("starts and ends have to be the same length")
+    # much faster,
+    # only works if spikes sorted by time and start and ends never overlap
+    # ie. all non overlapping intervals!!!!!
+    idx_stim = x * 0
+    idx_stim[np.searchsorted(x, starts)] = 1
+    idx_stim[np.searchsorted(x, ends)] = -1
+    idx_stim = np.cumsum(idx_stim).astype(np.bool)
+    temp_x2 = x[idx_stim]
+    temp_y2 = y[idx_stim]
+
+    return temp_x2, temp_y2
+
+   #if len(starts) == len(ends):
+   #    temp_x = []
+   #    temp_y = []
+   #    for i in range(len(starts)):
+   #        temp_indices = np.where((x >= starts[i]) & (x <= ends[i]))[0]
+   #        temp_x = np.concatenate((temp_x, x[temp_indices]))
+   #        temp_y = np.concatenate((temp_y, y[temp_indices]))
+   #    return temp_x, temp_y
+   #else:
+   #    raise Exception("starts and ends have to be the same length")
 
 
 def main():
@@ -482,54 +504,55 @@ if __name__ == "__main__":
             probe=0,
             user_start="trial_start",
             user_end="stimOn_times",
+            data=True
         )
     )
 
-    print(
-        community_detection(
-            exp_ID,
-            visual=True,
-            probe=0,
-            user_start="trial_start",
-            feedbackType=1,
-            user_end="stimOn_times",
-        )
-    )
-    print(
-        community_detection(
-            exp_ID,
-            visual=True,
-            probe=0,
-            user_start="trial_start",
-            feedbackType=-1,
-            user_end="stimOn_times",
-        )
-    )
-
-    print(
-        community_detection(
-            exp_ID,
-            visual=True,
-            probe="both",
-            user_start="trial_start",
-            user_end="stimOn_times",
-        )
-    )
-    print(
-        community_detection(
-            exp_ID,
-            visual=True,
-            probe=0,
-            user_start="stimOn_times",
-            user_end="response_times",
-        )
-    )
-    print(
-        community_detection(
-            exp_ID,
-            visual=True,
-            probe=0,
-            user_start="response_times",
-            user_end="trial_end",
-        )
-    )
+    #print(
+    #    community_detection(
+    #        exp_ID,
+    #        visual=True,
+    #        probe=0,
+    #        user_start="trial_start",
+    #        feedbackType=1,
+    #        user_end="stimOn_times",
+    #    )
+    #)
+    #print(
+    #    community_detection(
+    #        exp_ID,
+    #        visual=True,
+    #        probe=0,
+    #        user_start="trial_start",
+    #        feedbackType=-1,
+    #        user_end="stimOn_times",
+    #    )
+    #)
+#
+    #print(
+    #    community_detection(
+    #        exp_ID,
+    #        visual=True,
+    #        probe="both",
+    #        user_start="trial_start",
+    #        user_end="stimOn_times",
+    #    )
+    #)
+    #print(
+    #    community_detection(
+    #        exp_ID,
+    #        visual=True,
+    #        probe=0,
+    #        user_start="stimOn_times",
+    #        user_end="response_times",
+    #    )
+    #)
+    #print(
+    #    community_detection(
+    #        exp_ID,
+    #        visual=True,
+    #        probe=0,
+    #        user_start="response_times",
+    #        user_end="trial_end",
+    #    )
+    #)
