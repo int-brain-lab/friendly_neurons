@@ -65,6 +65,7 @@ def community_detection(
     Example:
     without a know path:
     >>>community_detection(
+    >>community_detection(
             exp_ID,
             visual=True,
             probe="probe00",
