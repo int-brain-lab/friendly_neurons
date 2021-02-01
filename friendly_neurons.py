@@ -249,6 +249,7 @@ def loading_DataJoint(eID, probe, region_list=[]):
     #indices=[l for l in range(len(clusters))]
     #indices_sorted=sorted(indices, key=lambda x: spikes[x])
     #indices=np.array(indices_sorted)
+<<<<<<< HEAD
     clusters=clusters[indices_sorted]
     
     trials=dict()
@@ -389,7 +390,7 @@ def community_detections_helper(
     )
 
     spikes_matrix = bb.processing.bincount2D(
-        spikes_interval, clusters_interval, xbin=bins
+        spikes_interval, clusters_interval, xbin=bins, # xlim=[0, nclusters]
     )[0]
     spikes_matrix_fixed=addition_of_empty_neurons(spikes_matrix,clusters,clusters_interval)
     correlation_matrix_original = np.corrcoef(spikes_matrix_fixed)
