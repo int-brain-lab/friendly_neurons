@@ -133,7 +133,7 @@ def brain_region( eID,
     
     Example:
     without a know path:
-    >>>community_detection(
+    >>community_detection(
             exp_ID,
             visual=True,
             probe="probe00",
