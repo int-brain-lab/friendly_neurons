@@ -71,7 +71,7 @@ def community_detection(
             probe="probe00",
             start="stimOn_times",
             end="response_times",
-        )
+        )s
     with a known path "\\directory\\": 
         community_detection(
             exp_ID,
@@ -240,18 +240,9 @@ def loading_DataJoint(eID, probe, region_list=[]):
         i+=1
     clusters=np.hstack(clusters)
     spikes=np.hstack(spikes_times)
-<<<<<<< HEAD
-=======
-    ### To speed things up
->>>>>>> code_review
     indices_sorted = np.argsort(spikes)
     spikes = spikes[indices_sorted]
-    #indices=[l for l in range(len(clusters))]
-    #indices_sorted=sorted(indices, key=lambda x: spikes[x])
-    #indices=np.array(indices_sorted)
-<<<<<<< HEAD
     clusters=clusters[indices_sorted]
-    
     trials=dict()
     trials["feedbackType"]=(behavior.TrialSet.Trial() & key).fetch('trial_feedback_type')
     trials["intervals"]=np.transpose(np.vstack([(behavior.TrialSet.Trial() & key).fetch('trial_start_time'),(behavior.TrialSet.Trial() & key).fetch('trial_end_time')]))
@@ -356,18 +347,6 @@ def community_detections_helper(
 
 
         """
-        # cluster = [13, 53, 270]
-        # for i in cluster:
-        #    plt.plot(spikes_matrix[i, :])
-        #    plt.title("Spike count for cluster {}".format(i))
-        #    plt.xlabel("bins ({} s each)".format(bins))
-        #    plt.ylabel("number of spikes")
-        #    plt.show()
-
-        # sns.heatmap(correlation_matrix_original, square=True)
-        # plt.title("Trial duration correlations (stim onset to reaching target)")
-        # plt.show()
-
         visual_style1 = {}
         edge_darkness=0.5
         f = lambda x: x if x > 0 else 0
@@ -406,16 +385,11 @@ def community_detections_helper(
         partition = la.RBConfigurationVertexPartition(
             neuron_graph, resolution_parameter=sensitivity
         )
-        # partition = la.CPMVertexPartition(
-        #    neuron_graph, resolution_parameter=sensitivity
-        # )
-
         optimiser = la.Optimiser()
         optimiser.optimise_partition(partition)
     else:
         partition = la.find_partition(neuron_graph, la.ModularityVertexPartition)
 
-    partition = la.find_partition(neuron_graph, la.ModularityVertexPartition)
 
     visualize() if visual else None
 
@@ -430,28 +404,6 @@ def addition_of_empty_neurons(spikes_matrix,clusters,clusters_interval):
     included_clust = np.unique(clusters_interval).astype(int)
     spikes_matrix_fixed = np.zeros((n_clust, spikes_matrix.shape[1]))
     spikes_matrix_fixed[included_clust, :] = spikes_matrix
-
-    #present_clusters=[int(i) for i in set(clusters_interval)]
-    #present_clusters_set=set(present_clusters)
-    #present_clusters.sort()
-
-    #n_clusters= int(max(clusters))+1
-    #k_spikes=len(spikes_matrix[0][:])
-    #spikes_matrix_fixed=None
-    #k=0
-    #for j in range(n_clusters):
-    #    if j==0:
-    #        if j in present_clusters_set: 
-    #            spikes_matrix_fixed=np.array([spikes_matrix[k][:]])
-    #            k+=1
-    #        else: 
-    #            spikes_matrix_fixed=np.array([np.zeros(k_spikes)])
-    #    else:
-    #        if j in present_clusters_set: 
-    #            spikes_matrix_fixed=np.concatenate((spikes_matrix_fixed,np.array([spikes_matrix[k][:]])))
-    #            k+=1
-    #        else: 
-    #            spikes_matrix_fixed=np.concatenate((spikes_matrix_fixed,np.array([np.zeros(k_spikes)])))
     return spikes_matrix_fixed
 
 
@@ -475,10 +427,7 @@ def interval_selection(x, y, starts, ends):
     temp_y= y variable array with the elements not belonging to the variable array
 
     """
-   
-    # much faster,
-    # only works if spikes sorted by time and start and ends never overlap
-    # ie. all non overlapping intervals!!!!!
+
 
     idx_stim = x * 0
     idx_stim[np.searchsorted(x, starts)] = 1
@@ -489,17 +438,6 @@ def interval_selection(x, y, starts, ends):
 
     return temp_x2, temp_y2
 
-    #if len(starts) == len(ends):
-    #    temp_x = []
-    #    temp_y = []
-    #    for i in range(len(starts)):
-    #        temp_indices = np.where((x >= starts[i]) & (x <= ends[i]))[0]
-    #        temp_x = np.concatenate((temp_x, x[temp_indices]))
-    #        temp_y = np.concatenate((temp_y, y[temp_indices]))
-    #    return temp_x, temp_y
-    #else:
-    #    raise Exception("starts and ends have to be the same length")
-
 
 def main():
     print("communtity detection")
@@ -507,7 +445,7 @@ def main():
 
 if __name__ == "__main__":
     exp_ID = "ecb5520d-1358-434c-95ec-93687ecd1396"
-    brain_areas=["VIs"]
+    brain_areas=["VIS"]
     
 
 
