@@ -8,8 +8,7 @@ import random
 from uuid import UUID 
 import datetime
 import igraph
-
-
+import pickle
 
 
 
@@ -385,22 +384,33 @@ def sections(partition):
                 temp_dict[i][temp]=partition[i][j]
     return temp_dict
 
-def belong_dictionary(partitions):
+def belong_dictionary(partitions, matchings=None , base_layout=None ):
     """
 
     Makes a dictionary with pairs (i,j ) 
 
 
     """
-
+    flag= (matchings is not None) & (base_layout is not None )
     result=dict()
     for i in range( len(partitions)): 
+        flag_base= flag  & i != base_layout
+        if flag_base:
+            match= matchings[i]
+        
         for j in partitions[i]: 
             for k in partitions[i][j]:
                 if k in result:
-                    result[k].append((i,j))
+                    if flag_base:
+                        result[k].append(match[j])
+                    else: 
+                        result[k].append(j)
                 else:
-                    result[k]=[(i,j)]
+                    if flag_base:
+                        result[k]=[match[j]]
+                    else: 
+                        result[k]=[j]
+
     return result
 
 def visualize(g, layout="circle", vertex_size=20, labels=None, length=1000, height=1000, coloring=None  ):
@@ -461,17 +471,17 @@ def visualized_3d(results, matchings,base_layout, eID, probe):
             if q:
                 cluster_coords.append(q.fetch('channel_x', 'channel_y', 'channel_z'))
             else:
-                cluster_coords.append(None)
+                cluster_coords.append([0,0,0])
         else:
-            cluster_coords.append(None)
-    allegiance=[]
-    #for i in results: 
-    #    allegiance.append([j[0] for j in belong_dictionary([i["partition"]])])
-    #allegiance.append(results[0]["locations"])
-    #clusters=len(cluster_coords)
-    
-    #for i in range(clusters):
-    #    pass
+            cluster_coords.append([0,0,0])
+    matchings.insert(base_layout, {} )
+    allegiance=belong_dictionary([i["partition"] for i in results],matchings, base_layout)
+    location= results[0]["locations"]
+    clusters=len(cluster_coords)
+    final=[]
+    for i in range(clusters):
+        final.append(cluster_coords[i]+[location[i]]+allegiance[i])
+    return final 
         
         
 
@@ -497,8 +507,14 @@ for k in expIDs:
         i=k[0]
         print(k[1])
         print("probe00")
+        table=[5,5,5]
+        file_p=open(k[1]+"_probe00","wb")
+        pickle.dump(table, file_p )
+        file_p.close()
 
-        general_analysis(i, 0, base_layout=0)
+        #table=general_analysis(i, 0, base_layout=0)
+        #pickle.dump(table, open("data_visualization\\"+k[1]+"_probe00","xb"))
+
         
         #general_analysis(i, 0, base_layout=0, region_list=["VIS"])
         #general_analysis(i, 0, base_layout=0, region_list=["CA1", "CA3"])

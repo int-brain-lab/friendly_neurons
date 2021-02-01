@@ -239,9 +239,11 @@ def loading_DataJoint(eID, probe, region_list=[]):
         i+=1
     clusters=np.hstack(clusters)
     spikes=np.hstack(spikes_times)
-    indices=[l for l in range(len(clusters))]
-    indices_sorted=sorted(indices, key=lambda x: spikes[x])
-    indices=np.array(indices_sorted)
+    indices_sorted = np.argsort(spikes)
+    spikes = spikes[indices_sorted]
+    #indices=[l for l in range(len(clusters))]
+    #indices_sorted=sorted(indices, key=lambda x: spikes[x])
+    #indices=np.array(indices_sorted)
     clusters=clusters[indices_sorted]
     
     trials=dict()
@@ -418,28 +420,32 @@ def addition_of_empty_neurons(spikes_matrix,clusters,clusters_interval):
 
 
     """
+    n_clust = np.max(clusters) + 1 #or if we get it from datajoint earlier safer
+    included_clust = np.unique(clusters_interval).astype(int)
+    spikes_matrix_fixed = np.zeros((n_clust, spikes_matrix.shape[1]))
+    spikes_matrix_fixed[included_clust, :] = spikes_matrix
 
-    present_clusters=[int(i) for i in set(clusters_interval)]
-    present_clusters_set=set(present_clusters)
-    present_clusters.sort()
+    #present_clusters=[int(i) for i in set(clusters_interval)]
+    #present_clusters_set=set(present_clusters)
+    #present_clusters.sort()
 
-    n_clusters= int(max(clusters))+1
-    k_spikes=len(spikes_matrix[0][:])
-    spikes_matrix_fixed=None
-    k=0
-    for j in range(n_clusters):
-        if j==0:
-            if j in present_clusters_set: 
-                spikes_matrix_fixed=np.array([spikes_matrix[k][:]])
-                k+=1
-            else: 
-                spikes_matrix_fixed=np.array([np.zeros(k_spikes)])
-        else:
-            if j in present_clusters_set: 
-                spikes_matrix_fixed=np.concatenate((spikes_matrix_fixed,np.array([spikes_matrix[k][:]])))
-                k+=1
-            else: 
-                spikes_matrix_fixed=np.concatenate((spikes_matrix_fixed,np.array([np.zeros(k_spikes)])))
+    #n_clusters= int(max(clusters))+1
+    #k_spikes=len(spikes_matrix[0][:])
+    #spikes_matrix_fixed=None
+    #k=0
+    #for j in range(n_clusters):
+    #    if j==0:
+    #        if j in present_clusters_set: 
+    #            spikes_matrix_fixed=np.array([spikes_matrix[k][:]])
+    #            k+=1
+    #        else: 
+    #            spikes_matrix_fixed=np.array([np.zeros(k_spikes)])
+    #    else:
+    #        if j in present_clusters_set: 
+    #            spikes_matrix_fixed=np.concatenate((spikes_matrix_fixed,np.array([spikes_matrix[k][:]])))
+    #            k+=1
+    #        else: 
+    #            spikes_matrix_fixed=np.concatenate((spikes_matrix_fixed,np.array([np.zeros(k_spikes)])))
     return spikes_matrix_fixed
 
 
@@ -463,16 +469,30 @@ def interval_selection(x, y, starts, ends):
     temp_y= y variable array with the elements not belonging to the variable array
 
     """
-    if len(starts) == len(ends):
-        temp_x = []
-        temp_y = []
-        for i in range(len(starts)):
-            temp_indices = np.where((x >= starts[i]) & (x <= ends[i]))[0]
-            temp_x = np.concatenate((temp_x, x[temp_indices]))
-            temp_y = np.concatenate((temp_y, y[temp_indices]))
-        return temp_x, temp_y
-    else:
-        raise Exception("starts and ends have to be the same length")
+   
+    # much faster,
+    # only works if spikes sorted by time and start and ends never overlap
+    # ie. all non overlapping intervals!!!!!
+
+    idx_stim = x * 0
+    idx_stim[np.searchsorted(x, starts)] = 1
+    idx_stim[np.searchsorted(x, ends)] = -1
+    idx_stim = np.cumsum(idx_stim).astype(np.bool)
+    temp_x2 = x[idx_stim]
+    temp_y2 = y[idx_stim]
+
+    return temp_x2, temp_y2
+
+    #if len(starts) == len(ends):
+    #    temp_x = []
+    #    temp_y = []
+    #    for i in range(len(starts)):
+    #        temp_indices = np.where((x >= starts[i]) & (x <= ends[i]))[0]
+    #        temp_x = np.concatenate((temp_x, x[temp_indices]))
+    #        temp_y = np.concatenate((temp_y, y[temp_indices]))
+    #    return temp_x, temp_y
+    #else:
+    #    raise Exception("starts and ends have to be the same length")
 
 
 def main():
