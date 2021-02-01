@@ -4,4 +4,11 @@ pycairo
 leidenalg
 flake8
 datajoint
+=======
+ibllib
+pycairo
+leidenalg
+flake8
+datajoint
+>>>>>>> code_review
 IBL_pipeline
