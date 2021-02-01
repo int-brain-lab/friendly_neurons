@@ -240,6 +240,10 @@ def loading_DataJoint(eID, probe, region_list=[]):
         i+=1
     clusters=np.hstack(clusters)
     spikes=np.hstack(spikes_times)
+<<<<<<< HEAD
+=======
+    ### To speed things up
+>>>>>>> code_review
     indices_sorted = np.argsort(spikes)
     spikes = spikes[indices_sorted]
     #indices=[l for l in range(len(clusters))]
