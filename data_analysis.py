@@ -1,4 +1,6 @@
-from friendly_neurons import *
+
+
+
 from ibl_pipeline import subject, acquisition, ephys, histology
 from tqdm import tqdm
 import datajoint as dj
@@ -7,9 +9,15 @@ import matplotlib.pyplot as plt
 import random
 from uuid import UUID 
 import datetime
-import igraph
+import igraph as ig 
 import pickle
 
+
+###file dependencies
+
+
+from friendly_neurons import community_detection
+from  dj_loading import loading
 
 
 
@@ -49,10 +57,10 @@ def general_analysis(
     ###Data collection 
     results=[]
     
-    data=loading_DataJoint( exp_ID , probe,region_list=region_list)
+    data=loading( exp_ID , probe,region_list=region_list)
     for time1, time2 in timeperiods:
         temp_dict=dict()
-        graph, partition, regions, locations=brain_region(exp_ID, visual=visual, probe=probe, user_start=time1, user_end=time2, feedbackType=feedbackType,data=data, region_list=region_list)
+        graph, partition, regions, locations=community_detection(exp_ID, visual=visual, probe=probe, user_start=time1, user_end=time2, feedbackType=feedbackType,data=data, region_list=region_list)
         temp_dict["graph"]=graph
         temp_dict["partition"]=partition
         temp_dict["regions"]= regions
@@ -90,7 +98,7 @@ def general_analysis(
     
     print("Compare communities")
 
-    print([[ compare_communities(i["graph"],j["graph"] ) for i in results] for j in results])
+    print([[ ig.compare_communities(i["graph"],j["graph"] ) for i in results] for j in results])
 
 
     print("Ovelap of communities")
@@ -136,7 +144,7 @@ def general_analysis(
     layout_probe_3= [ [ int(length*( 1/2-0.1+0.2*i%3)),layout_probe_y[i][1]] for i in range(len(layout_probe_y))]
     layout_mixed=[ [layout_x[i][0],layout_y[i][1]] for i in range(min(len(layout_y),len(layout_x)))]
     layout_depth=[ [layout_x[i][0],layout_probe_y[i][1]] for i in range(min(len(layout_probe_y),len(layout_x)))]
-    coloring= ClusterColoringPalette(20)
+    coloring= ig.ClusterColoringPalette(20)
     colorings=[]
     for i in range(len(overlaps)):
         o_partition=results_no_base[i]["partition"]
@@ -173,7 +181,7 @@ def general_analysis(
     return visualized_3d(results, matchings, base_layout,exp_ID, probe)
    
 
-class Pallete_changed(ClusterColoringPalette):
+class Pallete_changed(ig.ClusterColoringPalette):
     """
 
     Altered pallete that makes an assignment based on the matching dictionary if the color is already in the dictionary
@@ -438,7 +446,7 @@ def visualize(g, layout="circle", vertex_size=20, labels=None, length=1000, heig
     visual_style1["vertex_size"] = vertex_size
     if coloring!=None:
         visual_style1["palette"]=coloring
-    plot(g, **visual_style1)
+    ig.plot(g, **visual_style1)
 
 
 
@@ -490,47 +498,45 @@ def visualized_3d(results, matchings,base_layout, eID, probe):
 
 
 
-#expIDs=[["ecb5520d-1358-434c-95ec-93687ecd1396", "Anne"], ['c9fec76e-7a20-4da4-93ad-04510a89473b', "nate"], ['c8e60637-de79-4334-8daf-d35f18070c29', "anneu1"] ,['c660af59-5803-4846-b36e-ab61afebe081', "KS"]  ,  ['dda5fc59-f09a-4256-9fb5-66c67667a466', "anneu2"], ["a4000c2f-fa75-4b3e-8f06-a7cf599b87ad", "Karolina"]]
-#expIDs=[['c8e60637-de79-4334-8daf-d35f18070c29', "anneu1"] ,['c660af59-5803-4846-b36e-ab61afebe081', "KS"]  ,  ['dda5fc59-f09a-4256-9fb5-66c67667a466', "anneu2"], ["a4000c2f-fa75-4b3e-8f06-a7cf599b87ad", "Karolina"]]
-#expIDs=[["ecb5520d-1358-434c-95ec-93687ecd1396", "Anne"]]
-#expIDs= [['c9fec76e-7a20-4da4-93ad-04510a89473b', "nate"]]
-#expIDs=[['dda5fc59-f09a-4256-9fb5-66c67667a466', "anneu2"]]
-#expI3Ds=[["a4000c2f-fa75-4b3e-8f06-a7cf599b87ad", "Karolina"]]
-expIDs=[["ecb5520d-1358-434c-95ec-93687ecd1396", "Anne"], ['c9fec76e-7a20-4da4-93ad-04510a89473b', "nate"]]
 
 
 
 
-for k in expIDs:
-    #try: 
+if __name__ == "__main__":
+    #expIDs=[["ecb5520d-1358-434c-95ec-93687ecd1396", "Anne"], ['c9fec76e-7a20-4da4-93ad-04510a89473b', "nate"], ['c8e60637-de79-4334-8daf-d35f18070c29', "anneu1"] ,['c660af59-5803-4846-b36e-ab61afebe081', "KS"]  ,  ['dda5fc59-f09a-4256-9fb5-66c67667a466', "anneu2"], ["a4000c2f-fa75-4b3e-8f06-a7cf599b87ad", "Karolina"]]
+    #expIDs=[['c8e60637-de79-4334-8daf-d35f18070c29', "anneu1"] ,['c660af59-5803-4846-b36e-ab61afebe081', "KS"]  ,  ['dda5fc59-f09a-4256-9fb5-66c67667a466', "anneu2"], ["a4000c2f-fa75-4b3e-8f06-a7cf599b87ad", "Karolina"]]
+    #expIDs=[["ecb5520d-1358-434c-95ec-93687ecd1396", "Anne"]]
+    #expIDs= [['c9fec76e-7a20-4da4-93ad-04510a89473b', "nate"]]
+    #expIDs=[['dda5fc59-f09a-4256-9fb5-66c67667a466', "anneu2"]]
+    #expI3Ds=[["a4000c2f-fa75-4b3e-8f06-a7cf599b87ad", "Karolina"]]
+    expIDs=[["ecb5520d-1358-434c-95ec-93687ecd1396", "Anne"], ['c9fec76e-7a20-4da4-93ad-04510a89473b', "nate"]]
+    for k in expIDs:
+        try: 
 
-        i=k[0]
-        print(k[1])
-        print("probe00")
-        table=[5,5,5]
-        file_p=open(k[1]+"_probe00","wb")
-        pickle.dump(table, file_p )
-        file_p.close()
+            i=k[0]
+            print(k[1])
+            print("probe00")
+            file_p=open(k[1]+"_probe00","wb")
+            table=general_analysis(i, 0, base_layout=0)
+            pickle.dump(table, file_p )
+            file_p.close()
 
-        #table=general_analysis(i, 0, base_layout=0)
-        #pickle.dump(table, open("data_visualization\\"+k[1]+"_probe00","xb"))
+            
+            #general_analysis(i, 0, base_layout=0, region_list=["VIS"])
+            #general_analysis(i, 0, base_layout=0, region_list=["CA1", "CA3"])
+            #input("Enter your value: ") 
+            #general_analysis(i, "probe00",feedbackType=1)
+            #general_analysis(i, "probe00", feedbackType=0)
+            #print("probe01")
+            #general_analysis(i, 1,base_layout=0)
+            #input("Enter your value: ") 
+            #print("both")
+            #general_analysis(i, "both")
+            
 
-        
-        #general_analysis(i, 0, base_layout=0, region_list=["VIS"])
-        #general_analysis(i, 0, base_layout=0, region_list=["CA1", "CA3"])
-        #input("Enter your value: ") 
-        #general_analysis(i, "probe00",feedbackType=1)
-        #general_analysis(i, "probe00", feedbackType=0)
-        #print("probe01")
-        #general_analysis(i, 1,base_layout=0)
-        #input("Enter your value: ") 
-        #print("both")
-        #general_analysis(i, "both")
-        
-
-        #input("Enter your value: ") 
-    #except:
-        #print(k[1] +" did not work")
+            #input("Enter your value: ") 
+        except:
+            print(k[1] +" did not work")
 
     
 
