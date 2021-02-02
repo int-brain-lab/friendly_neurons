@@ -25,6 +25,10 @@ from ibl_pipeline.analyses import behavior as behavior_analyses
 from uuid import UUID
 import datetime
 
+###file_dependencies
+import spikes_processing as spp
+import dj_loading as djl
+
 
 def community_detection(
     eID,
@@ -59,6 +63,7 @@ def community_detection(
     Return:
     partition: ig graph vertex partition object
     partition_dictionary: a dictionary with keys for each community and sets as values with the indices of the clusters that belong to that community, and the key
+    region_dict: dictionary keyed by community number and value of a dictionary with the names of the brain regions of that community and their frequency
     locations: a list of the locations for each cluster
     
     
@@ -85,78 +90,42 @@ def community_detection(
 
     """
     if not bool(data):
-        spikes, clusters, trials, locations = loading_DataJoint( eID , probe, region_list)
+        spikes, clusters, trials, locations = djl.loading( eID , probe, region_list)
     else: 
         spikes, clusters, trials, locations = data
         
     starts, ends = section_trial(user_start, user_end, trials, feedbackType)
-    partition = community_detections_helper(
-        spikes, clusters, starts, ends, bin, visual, sensitivity
+
+    spikes_interval, clusters_interval = spp.interval_selection(
+        spikes, clusters, starts, ends
     )
+
+    spikes_matrix = bb.processing.bincount2D(
+        spikes_interval, clusters_interval, xbin=bin, # xlim=[0, nclusters]
+    )[0]
+    spikes_matrix_fixed=spp.addition_of_empty_neurons(spikes_matrix,clusters,clusters_interval)
+    correlation_matrix_original = np.corrcoef(spikes_matrix_fixed)
+    correlation_matrix = correlation_matrix_original[:, :]
+    correlation_matrix[correlation_matrix < 0] = 0
+    np.fill_diagonal(correlation_matrix, 0)
+    neuron_graph = ig.Graph.Weighted_Adjacency(
+        correlation_matrix.tolist(), mode="UNDIRECTED"
+    )
+    neuron_graph.vs["label"] = [f"{i}" for i in range(np.max(clusters))]
+    
+    if sensitivity != 1:
+
+        partition = la.RBConfigurationVertexPartition(
+            neuron_graph, resolution_parameter=sensitivity
+        )
+        optimiser = la.Optimiser()
+        optimiser.optimise_partition(partition)
+    else:
+        partition = la.find_partition(neuron_graph, la.ModularityVertexPartition)
+
+    visualization(neuron_graph, partition) if visual else None
     partition_dictionary = dictionary_from_communities(partition)
-    return partition, partition_dictionary, locations
-
-def brain_region( eID,
-    probe="both",
-    bin=0.02,
-    sensitivity=1,
-    visual=False,
-    feedbackType=None,
-    user_start="trial_start",
-    user_end="trial_end",
-    region_list=[],
-    data=None
-    ):
-    """
-    Function:
-    Takes an experiment ID and makes community detection analysis 
-
-
-    Parameters:
-    eID: experiment ID 
-    probe: name of the probe wanted or both for both probes
-    bin: the size of the bin
-    sensitivity: the sensibility parameter for the leiden algorithm
-    visual: a boolean on whether visualization is wanted
-    feedbackType: value for feedback wanted
-    starts: the name of the type of start intervals
-    ends: the name of the type of end intervals
-
-
-
-    Return:
-    partition: ig graph vertex partition object
-    partition_dictionary: a dictionary with keys for each community and sets as values with the indices of the clusters that belong to that community, and the key
-    region_dict: dictionary keyed by community number and value of a dictionary with the names of the brain regions of that community and their frequency
-    locations: a list of the locations for each cluster
-    
-    
-    Example:
-    without a know path:
-    >>community_detection(
-            exp_ID,
-            visual=True,
-            probe="probe00",
-            start="stimOn_times",
-            end="response_times",
-        )
-    with a known path "\\directory\\": 
-        community_detection(
-            exp_ID,
-            visual=True,
-            path="\\directory\\"
-            probe="probe00",
-            start="stimOn_times",
-            end="response_times",
-        )
-
-
-    """
-
-
-    partition, partition_dictionary, locations= community_detection(eID,probe,bin,sensitivity,visual,feedbackType,user_start,user_end,data=data,region_list=region_list)
     region_dict = location_dictionary(partition_dictionary, locations)
-
     return partition, partition_dictionary, region_dict, locations
 
 
@@ -202,61 +171,35 @@ def section_trial(user_start, user_end, trials, feedbackType):
         return starts, ends
 
 
-def loading_DataJoint(eID, probe, region_list=[]):
-    """
-    Function:
-    The function connects with the database and gets the objects from that experiment
+def visualization(neuron_graph, partition):
+        """
+        Function:
+        Handles visualization of the graphs
+        Parameters:
+        neuron_graph=matrix represetation of the graph
+        partition= partition object from igraph
+        Return 
+        ----
+
+        """
+        visual_style1 = {}
+        edge_darkness=0.5
+        f = lambda x: x if x > 0 else 0
+        visual_style1["edge_width"] = [f(w) *  edge_darkness for w in neuron_graph.es["weight"]]
+        visual_style1["layout"] = "circle"
+        visual_style1["labels"] = True
+        visual_style1["vertex_size"] = 20
+        visual_style1["vertex_color"] = "moccasin"
+        plot(neuron_graph, **visual_style1)
+        visual_style = {}
+        f = lambda x: x if x > 0 else 0
+        visual_style["edge_width"] = [f(w) *edge_darkness  for w in neuron_graph.es["weight"]]
+        visual_style["layout"] = "circle"
+        visual_style["labels"] = True
+        visual_style["vertex_size"] = 20
+        plot(partition, **visual_style)
 
 
-    Parameters:
-    eID: the ID of the experiment
-    probe:the probe for the analysis or the word "both" for both probes
-
-
-    Return:
-    spikes: an array with the times of all the spikes
-    clusters: an array with a label for each cluster
-    trials: a 'trial' object from the IBLLIB library
-    locations: a list with the size of the number of clusters 
-
-    """
-    ephys = dj.create_virtual_module('ephys', 'ibl_ephys')
-    histology = dj.create_virtual_module('histology', 'ibl_histology')
-    key_session=[{'session_uuid': UUID(eID)}]
-    key = (acquisition.Session & ephys.DefaultCluster & key_session).fetch('KEY', limit=1)
-    if probe !='both':
-        key[0]['probe_idx']=probe
-    if len(region_list)==0: 
-        spikes_times = (ephys.DefaultCluster & key).fetch('cluster_spikes_times')
-        location= ndarray.tolist((histology.ClusterBrainRegionTemp() & key).fetch('acronym'))
-    else: 
-        command_list= region_commands(region_list)
-        spikes_times = (ephys.DefaultCluster & key & (histology.ClusterBrainRegionTemp & (reference.BrainRegion() &  command_list))).fetch('cluster_spikes_times')
-        location= ndarray.tolist((histology.ClusterBrainRegionTemp & key & (reference.BrainRegion() &  command_list)).fetch('acronym'))
-    i=0
-    clusters=[]
-    for spike in spikes_times:
-        clusters.append(np.full(len(spike), i, dtype=int))
-        i+=1
-    clusters=np.hstack(clusters)
-    spikes=np.hstack(spikes_times)
-    indices_sorted = np.argsort(spikes)
-    spikes = spikes[indices_sorted]
-    clusters=clusters[indices_sorted]
-    trials=dict()
-    trials["feedbackType"]=(behavior.TrialSet.Trial() & key).fetch('trial_feedback_type')
-    trials["intervals"]=np.transpose(np.vstack([(behavior.TrialSet.Trial() & key).fetch('trial_start_time'),(behavior.TrialSet.Trial() & key).fetch('trial_end_time')]))
-    trials["stimOn_times"]=(behavior.TrialSet.Trial() & key).fetch('trial_stim_on_time')
-    trials["response_times"]=(behavior.TrialSet.Trial() & key).fetch('trial_response_time')
-
-    return spikes, clusters, trials, location
-
-
-def region_commands(s_list):
-    result=[]
-    for region in s_list:
-        result.append('acronym like "%'+region+'%"')
-    return result
 
 def dictionary_from_communities(partition):
     """
@@ -279,6 +222,11 @@ def dictionary_from_communities(partition):
         else:
             community[member[i]] = set([vertices[i]])
     return community
+
+
+
+
+
 
 
 def location_dictionary(partition_dict, cluster_region):
@@ -305,138 +253,6 @@ def location_dictionary(partition_dict, cluster_region):
 
         regions_dict[i] = section_dict
     return regions_dict
-
-
-
-
-def community_detections_helper(
-    spikes, clusters, starts, ends, bins, visual, sensitivity
-):
-    """
-    Function:
-    cleaves the time array for the spikes such that only intervals of interest are 
-    compiled into a time series array from which a correlation is gotten. 
-    From this correlation a graph is made on which the Leiden community detection is run. 
-
-
-    Parameters:
-    spikes: array with times for all the spikes
-    clusters: array with the names of the clusters
-    starts: array with stars of the intervals considered for the spikes
-    ends: array with ends of the intervals considered for the spikes
-    bins: the size of the bins
-    visual: boolean that marks whether visuals are wanted
-
-
-
-    Return:
-    partition: "vertexpartition" object from the igraph library
-
-
-    """
-
-    def visualize():
-        """
-        Function:
-        Plots graphs for all intermediate data.
-    ````Parameters:
-        None
-        Return 
-        None
-
-
-
-        """
-        visual_style1 = {}
-        edge_darkness=0.5
-        f = lambda x: x if x > 0 else 0
-        visual_style1["edge_width"] = [f(w) *  edge_darkness for w in neuron_graph.es["weight"]]
-        visual_style1["layout"] = "circle"
-        visual_style1["labels"] = True
-        visual_style1["vertex_size"] = 20
-        visual_style1["vertex_color"] = "moccasin"
-        plot(neuron_graph, **visual_style1)
-        visual_style = {}
-        f = lambda x: x if x > 0 else 0
-        visual_style["edge_width"] = [f(w) *edge_darkness  for w in neuron_graph.es["weight"]]
-        visual_style["layout"] = "circle"
-        visual_style["labels"] = True
-        visual_style["vertex_size"] = 20
-        plot(partition, **visual_style)
-
-    spikes_interval, clusters_interval = interval_selection(
-        spikes, clusters, starts, ends
-    )
-
-    spikes_matrix = bb.processing.bincount2D(
-        spikes_interval, clusters_interval, xbin=bins, # xlim=[0, nclusters]
-    )[0]
-    spikes_matrix_fixed=addition_of_empty_neurons(spikes_matrix,clusters,clusters_interval)
-    correlation_matrix_original = np.corrcoef(spikes_matrix_fixed)
-    correlation_matrix = correlation_matrix_original[:, :]
-    correlation_matrix[correlation_matrix < 0] = 0
-    np.fill_diagonal(correlation_matrix, 0)
-    neuron_graph = ig.Graph.Weighted_Adjacency(
-        correlation_matrix.tolist(), mode="UNDIRECTED"
-    )
-    neuron_graph.vs["label"] = [f"{i}" for i in range(np.max(clusters))]
-    if sensitivity != 1:
-
-        partition = la.RBConfigurationVertexPartition(
-            neuron_graph, resolution_parameter=sensitivity
-        )
-        optimiser = la.Optimiser()
-        optimiser.optimise_partition(partition)
-    else:
-        partition = la.find_partition(neuron_graph, la.ModularityVertexPartition)
-
-
-    visualize() if visual else None
-
-    return partition
-
-def addition_of_empty_neurons(spikes_matrix,clusters,clusters_interval):
-    """
-
-
-    """
-    n_clust = np.max(clusters) + 1 #or if we get it from datajoint earlier safer
-    included_clust = np.unique(clusters_interval).astype(int)
-    spikes_matrix_fixed = np.zeros((n_clust, spikes_matrix.shape[1]))
-    spikes_matrix_fixed[included_clust, :] = spikes_matrix
-    return spikes_matrix_fixed
-
-
-
-
-
-def interval_selection(x, y, starts, ends):
-    """
-    Function:
-    Chops the intervals in the x and y variable arrays
-
-    Parameters:
-    x: x variable array
-    y: y variable array
-    starts: starts of intervals in x
-    ends: ends of intervals in y
-    bins: size of the bins
-
-    Return:
-    temp_x=x variable array with the elements not belonging to the variable array
-    temp_y= y variable array with the elements not belonging to the variable array
-
-    """
-
-
-    idx_stim = x * 0
-    idx_stim[np.searchsorted(x, starts)] = 1
-    idx_stim[np.searchsorted(x, ends)] = -1
-    idx_stim = np.cumsum(idx_stim).astype(np.bool)
-    temp_x2 = x[idx_stim]
-    temp_y2 = y[idx_stim]
-
-    return temp_x2, temp_y2
 
 
 def main():
