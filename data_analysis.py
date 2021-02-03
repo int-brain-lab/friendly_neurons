@@ -506,17 +506,17 @@ for k in expIDs:
 
         i=k[0]
         print(k[1])
-        #print("probe00")
+        print("probe00")
         #file_p=open(k[1]+"_probe00","xb")
-        #table=general_analysis(i, 0, base_layout=0)
+        table=general_analysis(i, 0, base_layout=0)
         #pickle.dump(table, file_p)
         #file_p.close()
 
-        print("both")
-        file_p=open(k[1]+"_both","xb")
-        table=general_analysis(i, "both", base_layout=0)
-        pickle.dump(table, file_p)
-        file_p.close()
+        #print("both")
+        #file_p=open(k[1]+"_both","xb")
+        #table=general_analysis(i, "both", base_layout=0)
+        #pickle.dump(table, file_p)
+        #file_p.close()
         
         #general_analysis(i, 0, base_layout=0, region_list=["VIS"])
         #general_analysis(i, 0, base_layout=0, region_list=["CA1", "CA3"])
