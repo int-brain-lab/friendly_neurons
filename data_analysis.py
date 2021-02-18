@@ -1,4 +1,6 @@
-from friendly_neurons import *
+
+
+
 from ibl_pipeline import subject, acquisition, ephys, histology
 from tqdm import tqdm
 import datajoint as dj
@@ -7,9 +9,15 @@ import matplotlib.pyplot as plt
 import random
 from uuid import UUID 
 import datetime
-import igraph
+import igraph as ig 
 import pickle
 
+
+###file dependencies
+
+
+from friendly_neurons import community_detection
+from  dj_loading import loading
 
 
 
@@ -21,7 +29,10 @@ def general_analysis(
     feedbackType=None, 
     base_layout=1, 
     timeperiods=[("trial_start","stimOn_times"), ("stimOn_times", "response_times"), ("response_times", "trial_end") ], 
-    region_list=[]):
+    region_list=[],
+    file_nickname="experiment"
+    
+    ):
     """
 
     Makes a general analysis of th three main time perios (prestimulus, during stimulus, and after the stimulus)
@@ -49,10 +60,10 @@ def general_analysis(
     ###Data collection 
     results=[]
     
-    data=loading_DataJoint( exp_ID , probe,region_list=region_list)
+    data=loading( exp_ID , probe,region_list=region_list)
     for time1, time2 in timeperiods:
         temp_dict=dict()
-        graph, partition, regions, locations=brain_region(exp_ID, visual=visual, probe=probe, user_start=time1, user_end=time2, feedbackType=feedbackType,data=data, region_list=region_list)
+        graph, partition, regions, locations=community_detection(exp_ID, visual=visual, probe=probe, user_start=time1, user_end=time2, feedbackType=feedbackType,data=data, region_list=region_list)
         temp_dict["graph"]=graph
         temp_dict["partition"]=partition
         temp_dict["regions"]= regions
@@ -90,7 +101,7 @@ def general_analysis(
     
     print("Compare communities")
 
-    print([[ compare_communities(i["graph"],j["graph"] ) for i in results] for j in results])
+    print([[ ig.compare_communities(i["graph"],j["graph"] ) for i in results] for j in results])
 
 
     print("Ovelap of communities")
@@ -136,14 +147,14 @@ def general_analysis(
     layout_probe_3= [ [ int(length*( 1/2-0.1+0.2*i%3)),layout_probe_y[i][1]] for i in range(len(layout_probe_y))]
     layout_mixed=[ [layout_x[i][0],layout_y[i][1]] for i in range(min(len(layout_y),len(layout_x)))]
     layout_depth=[ [layout_x[i][0],layout_probe_y[i][1]] for i in range(min(len(layout_probe_y),len(layout_x)))]
-    coloring= ClusterColoringPalette(20)
+    coloring= ig.ClusterColoringPalette(20)
     colorings=[]
     for i in range(len(overlaps)):
         o_partition=results_no_base[i]["partition"]
         overlap=overlaps[i]
-        plt.table(cellText=[ [ overlap[(i,j)] for j in o_partition] for i in partition], rowLabels=[i for i in partition] , colLabels=[j for j in o_partition], loc='top' )
-        plt.subplots_adjust(left=0.2, top=0.8)
-        plt.show()
+        #plt.table(cellText=[ [ overlap[(i,j)] for j in o_partition] for i in partition], rowLabels=[i for i in partition] , colLabels=[j for j in o_partition], loc='top' )
+        #plt.subplots_adjust(left=0.2, top=0.8)
+        #plt.show()
        
         colorings.append(Pallete_changed(20, coloring, matchings[i] ))
     
@@ -154,26 +165,26 @@ def general_analysis(
     for i in range(len(timeperiods)):
         if i < base_layout: 
             pre_graph=results[i]["graph"]
-            visualize(pre_graph, layout= layout_mixed , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=colorings[i])
-            visualize(pre_graph, layout= layout_probe_3 , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=colorings[i])
-            visualize(pre_graph, layout= layout_depth , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=colorings[i])
+            #visualize(pre_graph, layout= layout_mixed , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=colorings[i], file_name=file_nickname+"_"+str(i)+"_final" +".svg")
+            #visualize(pre_graph, layout= layout_probe_3 , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=colorings[i], file_name=file_nickname+".pdf")
+            visualize(pre_graph, layout= layout_depth , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=colorings[i], file_name=file_nickname+"_"+str(i)+"_final"+".svg")
         elif i==base_layout:
             pre_graph=results[i]["graph"]
-            visualize(pre_graph, layout= layout_mixed , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=coloring)
-            visualize(pre_graph, layout= layout_probe_3 , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=coloring)
-            visualize(pre_graph, layout= layout_depth , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=coloring)
+            #visualize(pre_graph, layout= layout_mixed , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=coloring, file_name=file_nickname+"_"+str(i)+"_final"+".pdf")
+            #visualize(pre_graph, layout= layout_probe_3 , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=coloring, file_name=file_nickname+".pdf")
+            visualize(pre_graph, layout= layout_depth , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=coloring, file_name=file_nickname+"_"+str(i)+"_final"+".svg")
 
         else: 
             j=i-1
             pre_graph=results[i]["graph"]
-            visualize(pre_graph, layout= layout_mixed , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=colorings[j])
-            visualize(pre_graph, layout= layout_probe_3 , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=colorings[j])
-            visualize(pre_graph, layout= layout_depth , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=colorings[j])
+            #visualize(pre_graph, layout= layout_mixed , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=colorings[j], file_name=file_nickname+"_"+str(i)+"_final"+".pdf")
+            #visualize(pre_graph, layout= layout_probe_3 , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=colorings[j], file_name=file_nickname+".pdf")
+            visualize(pre_graph, layout= layout_depth , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=colorings[j], file_name=file_nickname+"_"+str(i)+"_final"+".svg")
     
     return visualized_3d(results, matchings, base_layout,exp_ID, probe)
    
 
-class Pallete_changed(ClusterColoringPalette):
+class Pallete_changed(ig.ClusterColoringPalette):
     """
 
     Altered pallete that makes an assignment based on the matching dictionary if the color is already in the dictionary
@@ -413,7 +424,7 @@ def belong_dictionary(partitions, matchings=None , base_layout=None ):
 
     return result
 
-def visualize(g, layout="circle", vertex_size=20, labels=None, length=1000, height=1000, coloring=None  ):
+def visualize(g, layout="circle", vertex_size=20, labels=None, length=1000, height=1000, coloring=None, file_name="holis.pdf" ):
     """
         Function:
         Plots graphs for all intermediate data.
@@ -438,7 +449,7 @@ def visualize(g, layout="circle", vertex_size=20, labels=None, length=1000, heig
     visual_style1["vertex_size"] = vertex_size
     if coloring!=None:
         visual_style1["palette"]=coloring
-    plot(g, **visual_style1)
+    ig.plot(g, file_name, **visual_style1)
 
 
 
@@ -490,49 +501,69 @@ def visualized_3d(results, matchings,base_layout, eID, probe):
 
 
 
-#expIDs=[["ecb5520d-1358-434c-95ec-93687ecd1396", "Anne"], ['c9fec76e-7a20-4da4-93ad-04510a89473b', "nate"], ['c8e60637-de79-4334-8daf-d35f18070c29', "anneu1"] ,['c660af59-5803-4846-b36e-ab61afebe081', "KS"]  ,  ['dda5fc59-f09a-4256-9fb5-66c67667a466', "anneu2"], ["a4000c2f-fa75-4b3e-8f06-a7cf599b87ad", "Karolina"]]
-#expIDs=[['c8e60637-de79-4334-8daf-d35f18070c29', "anneu1"] ,['c660af59-5803-4846-b36e-ab61afebe081', "KS"]  ,  ['dda5fc59-f09a-4256-9fb5-66c67667a466', "anneu2"], ["a4000c2f-fa75-4b3e-8f06-a7cf599b87ad", "Karolina"]]
-#expIDs=[["ecb5520d-1358-434c-95ec-93687ecd1396", "Anne"]]
-#expIDs= [['c9fec76e-7a20-4da4-93ad-04510a89473b', "nate"]]
-#expIDs=[['dda5fc59-f09a-4256-9fb5-66c67667a466', "anneu2"]]
-#expI3Ds=[["a4000c2f-fa75-4b3e-8f06-a7cf599b87ad", "Karolina"]]
-expIDs=[["ecb5520d-1358-434c-95ec-93687ecd1396", "Anne"], ['c9fec76e-7a20-4da4-93ad-04510a89473b', "nate"]]
 
 
 
 
-for k in expIDs:
-    #try: 
+if __name__ == "__main__":
+    #expIDs=[["ecb5520d-1358-434c-95ec-93687ecd1396", "Anne"], ['c9fec76e-7a20-4da4-93ad-04510a89473b', "nate"], ['c8e60637-de79-4334-8daf-d35f18070c29', "anneu1"] ,['c660af59-5803-4846-b36e-ab61afebe081', "KS"]  ,  ['dda5fc59-f09a-4256-9fb5-66c67667a466', "anneu2"], ["a4000c2f-fa75-4b3e-8f06-a7cf599b87ad", "Karolina"]]
+    #expIDs=[['c8e60637-de79-4334-8daf-d35f18070c29', "anneu1"] ,['c660af59-5803-4846-b36e-ab61afebe081', "KS"]  ,  ['dda5fc59-f09a-4256-9fb5-66c67667a466', "anneu2"], ["a4000c2f-fa75-4b3e-8f06-a7cf599b87ad", "Karolina"]]
+    #expIDs=[["ecb5520d-1358-434c-95ec-93687ecd1396", "Anne"]]
+    #expIDs= [['c9fec76e-7a20-4da4-93ad-04510a89473b', "nate"]]
+    #expIDs=[['dda5fc59-f09a-4256-9fb5-66c67667a466', "anneu2"]]
+    #expI3Ds=[["a4000c2f-fa75-4b3e-8f06-a7cf599b87ad", "Karolina"]]
+    #expIDs=[["ecb5520d-1358-434c-95ec-93687ecd1396", "Anne"], ['c9fec76e-7a20-4da4-93ad-04510a89473b', "nate"]]
+    #expIDs=[["4ddb8a95-788b-48d0-8a0a-66c7c796da96", "holis" ]]
+    expIDs=[['f49d972a-cf76-40c1-bf28-b83470ad6443', 'exp1' ],
+    ['db4df448-e449-4a6f-a0e7-288711e7a75a','exp2'],
+    ['3dd347df-f14e-40d5-9ff2-9c49f84d2157','exp3'],
+    ['3c851386-e92d-4533-8d55-89a46f0e7384', 'exp4'],
+    ['158d5d35-a2ab-4a76-87b0-51048c5d5283' ,'exp5'],
+    ['30e5937e-e86a-47e6-93ae-d2ae3877ff8e', 'exp6'],
+    ['413a6825-2144-4a50-b3fc-cf38ddd6fd1a' ,'exp7'],
+    ['a19c7a3a-7261-42ce-95d5-1f4ca46007ed', 'exp8'],
+    ['e5c772cd-9c92-47ab-9525-d618b66a9b5d', 'exp9'],
+    ['6668c4a0-70a4-4012-a7da-709660971d7a', 'exp10'],
+    ['5adab0b7-dfd0-467d-b09d-43cb7ca5d59c', 'exp11'],
+    ['49e0ab27-827a-4c91-bcaa-97eea27a1b8d', 'exp12'],
+    ['edd22318-216c-44ff-bc24-49ce8be78374', 'exp13'],
+    ['d33baf74-263c-4b37-a0d0-b79dcb80a764', 'exp14'],
+    ['259927fd-7563-4b03-bc5d-17b4d0fa7a55', 'exp15'],
+    ['510b1a50-825d-44ce-86f6-9678f5396e02', 'exp16'],
+    ['193fe7a8-4eb5-4f3e-815a-0c45864ddd77', 'exp17']]
+    
+    for k in expIDs:
+        try: 
 
-        i=k[0]
-        print(k[1])
-        print("probe00")
-        #file_p=open(k[1]+"_probe00","xb")
-        table=general_analysis(i, 0, base_layout=0)
-        #pickle.dump(table, file_p)
-        #file_p.close()
+            i=k[0]
+            print(k[1])
+            #print("probe00")
+            #file_p=open(k[1]+"_probe00","xb")
+            #table=general_analysis(i, 0, base_layout=0)
+            #pickle.dump(table, file_p)
+            #file_p.close()
 
-        #print("both")
-        #file_p=open(k[1]+"_both","xb")
-        #table=general_analysis(i, "both", base_layout=0)
-        #pickle.dump(table, file_p)
-        #file_p.close()
-        
-        #general_analysis(i, 0, base_layout=0, region_list=["VIS"])
-        #general_analysis(i, 0, base_layout=0, region_list=["CA1", "CA3"])
-        #input("Enter your value: ") 
-        #general_analysis(i, "probe00",feedbackType=1)
-        #general_analysis(i, "probe00", feedbackType=0)
-        #print("probe01")
-        #general_analysis(i, 1,base_layout=0)
-        #input("Enter your value: ") 
-        #print("both")
-        #general_analysis(i, "both")
-        
+            print("both")
+            file_p=open(k[1]+"_"+k[0]+"_both","xb")
+            table=general_analysis(i, "both", base_layout=0, file_nickname=k[1])
+            pickle.dump(table, file_p)
+            file_p.close()
+            
+            #general_analysis(i, 0, base_layout=0, region_list=["VIS"])
+            #general_analysis(i, 0, base_layout=0, region_list=["CA1", "CA3"])
+            #input("Enter your value: ") 
+            #general_analysis(i, "probe00",feedbackType=1)
+            #general_analysis(i, "probe00", feedbackType=0)
+            #print("probe01")
+            #general_analysis(i, 1,base_layout=0)
+            #input("Enter your value: ") 
+            #print("both")
+            #general_analysis(i, "both")
+            
 
-        #input("Enter your value: ") 
-    #except:
-        #print(k[1] +" did not work")
+            #input("Enter your value: ") 
+        except:
+            print(k[1] +" did not work")
 
     
 
