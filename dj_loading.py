@@ -50,6 +50,7 @@ def loading(eID, probe, region_list=[]):
     clusters=clusters[indices_sorted]
     trials=dict()
     trials["feedbackType"]=(behavior.TrialSet.Trial() & key).fetch('trial_feedback_type')
+    trials["feedbackType"]=(behavior.TrialSet.Trial() & key).fetch('trial_feedback_type')
     trials["intervals"]=np.transpose(np.vstack([(behavior.TrialSet.Trial() & key).fetch('trial_start_time'),(behavior.TrialSet.Trial() & key).fetch('trial_end_time')]))
     trials["stimOn_times"]=(behavior.TrialSet.Trial() & key).fetch('trial_stim_on_time')
     trials["response_times"]=(behavior.TrialSet.Trial() & key).fetch('trial_response_time')
