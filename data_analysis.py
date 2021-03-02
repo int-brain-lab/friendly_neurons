@@ -30,7 +30,9 @@ def general_analysis(
     base_layout=1, 
     timeperiods=[("trial_start","stimOn_times"), ("stimOn_times", "response_times"), ("response_times", "trial_end") ], 
     region_list=[],
-    file_nickname="experiment"
+    file_nickname="experiment", 
+    difficulty=[-1,1],
+    percentage= 1,
     
     ):
     """
@@ -63,7 +65,7 @@ def general_analysis(
     data=loading( exp_ID , probe,region_list=region_list)
     for time1, time2 in timeperiods:
         temp_dict=dict()
-        graph, partition, regions, locations=community_detection(exp_ID, visual=visual, probe=probe, user_start=time1, user_end=time2, feedbackType=feedbackType,data=data, region_list=region_list)
+        graph, partition, regions, locations=community_detection(exp_ID, probe=probe, user_start=time1, user_end=time2, feedbackType=feedbackType,  difficulty=difficulty,percentage= percentage,  data=data, region_list=region_list)
         temp_dict["graph"]=graph
         temp_dict["partition"]=partition
         temp_dict["regions"]= regions
@@ -181,7 +183,10 @@ def general_analysis(
             #visualize(pre_graph, layout= layout_probe_3 , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=colorings[j], file_name=file_nickname+".pdf")
             visualize(pre_graph, layout= layout_depth , vertex_size=30, labels=locations_simplified, length=length, height=height, coloring=colorings[j], file_name=file_nickname+"_"+str(i)+"_final"+".svg")
     
-    return visualized_3d(results, matchings, base_layout,exp_ID, probe)
+    if visual:
+        return visualized_3d(results, matchings, base_layout,exp_ID, probe)
+    else:
+        return []
    
 
 class Pallete_changed(ig.ClusterColoringPalette):
@@ -521,16 +526,16 @@ if __name__ == "__main__":
     ['158d5d35-a2ab-4a76-87b0-51048c5d5283' ,'exp5'],
     ['30e5937e-e86a-47e6-93ae-d2ae3877ff8e', 'exp6'],
     ['413a6825-2144-4a50-b3fc-cf38ddd6fd1a' ,'exp7'],
-    ['a19c7a3a-7261-42ce-95d5-1f4ca46007ed', 'exp8'],
-    ['e5c772cd-9c92-47ab-9525-d618b66a9b5d', 'exp9'],
-    ['6668c4a0-70a4-4012-a7da-709660971d7a', 'exp10'],
-    ['5adab0b7-dfd0-467d-b09d-43cb7ca5d59c', 'exp11'],
-    ['49e0ab27-827a-4c91-bcaa-97eea27a1b8d', 'exp12'],
-    ['edd22318-216c-44ff-bc24-49ce8be78374', 'exp13'],
-    ['d33baf74-263c-4b37-a0d0-b79dcb80a764', 'exp14'],
-    ['259927fd-7563-4b03-bc5d-17b4d0fa7a55', 'exp15'],
-    ['510b1a50-825d-44ce-86f6-9678f5396e02', 'exp16'],
-    ['193fe7a8-4eb5-4f3e-815a-0c45864ddd77', 'exp17']]
+    ['a19c7a3a-7261-42ce-95d5-1f4ca46007ed', 'exp8']]
+    #['e5c772cd-9c92-47ab-9525-d618b66a9b5d', 'exp9'],
+    #['6668c4a0-70a4-4012-a7da-709660971d7a', 'exp10'],
+    #['5adab0b7-dfd0-467d-b09d-43cb7ca5d59c', 'exp11'],
+    #['49e0ab27-827a-4c91-bcaa-97eea27a1b8d', 'exp12'],
+    #['edd22318-216c-44ff-bc24-49ce8be78374', 'exp13'],
+    #['d33baf74-263c-4b37-a0d0-b79dcb80a764', 'exp14'],
+    #['259927fd-7563-4b03-bc5d-17b4d0fa7a55', 'exp15'],
+    #['510b1a50-825d-44ce-86f6-9678f5396e02', 'exp16'],
+    #['193fe7a8-4eb5-4f3e-815a-0c45864ddd77', 'exp17']]
     
     for k in expIDs:
         try: 
@@ -549,6 +554,21 @@ if __name__ == "__main__":
             pickle.dump(table, file_p)
             file_p.close()
             
+            print("both_initial_trials")
+
+            file_p=open(k[1]+"_"+k[0]+"_both_initial","xb")
+            table=general_analysis(i, "both",  base_layout=0, file_nickname=k[1]+"_initial",percentage=0.5)
+            pickle.dump(table, file_p)
+            file_p.close()
+
+            print("both_initial_rights")
+            file_p=open(k[1]+"_"+k[0]+"_both_right","xb")
+            table=general_analysis(i, "both",  base_layout=0, difficulty=[0.5,1] ,file_nickname=k[1]+"_right")
+            pickle.dump(table, file_p)
+            file_p.close()
+
+            
+
             #general_analysis(i, 0, base_layout=0, region_list=["VIS"])
             #general_analysis(i, 0, base_layout=0, region_list=["CA1", "CA3"])
             #input("Enter your value: ") 

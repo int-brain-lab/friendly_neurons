@@ -50,7 +50,11 @@ def loading(eID, probe, region_list=[]):
     clusters=clusters[indices_sorted]
     trials=dict()
     trials["feedbackType"]=(behavior.TrialSet.Trial() & key).fetch('trial_feedback_type')
-    trials["feedbackType"]=(behavior.TrialSet.Trial() & key).fetch('trial_feedback_type')
+    trials["trial_id"]=(behavior.TrialSet.Trial() & key).fetch('trial_id')
+    trials["trial_response_choice"]=(behavior.TrialSet.Trial() & key).fetch('trial_response_choice')
+    trials["trial_stim_contrast_right"]=(behavior.TrialSet.Trial() & key).fetch('trial_stim_contrast_right')
+    trials["trial_stim_contrast_left"]=(behavior.TrialSet.Trial() & key).fetch('trial_stim_contrast_left')
+    trials["trials_stim_contrast"]= trials["trial_stim_contrast_right"]-trials["trial_stim_contrast_left"]
     trials["intervals"]=np.transpose(np.vstack([(behavior.TrialSet.Trial() & key).fetch('trial_start_time'),(behavior.TrialSet.Trial() & key).fetch('trial_end_time')]))
     trials["stimOn_times"]=(behavior.TrialSet.Trial() & key).fetch('trial_stim_on_time')
     trials["response_times"]=(behavior.TrialSet.Trial() & key).fetch('trial_response_time')
@@ -64,8 +68,12 @@ def region_commands(s_list):
     return result
 
 if __name__ == "__main__":
-    exp_ID = "ecb5520d-1358-434c-95ec-93687ecd1396"
+    exp_ID = 'db4df448-e449-4a6f-a0e7-288711e7a75a'
     brain_areas=["VIS"]
+    print(loading(exp_ID, 0))
+    #print(loading(exp_ID, 1))
+    print(loading(exp_ID, "both"))
+    print(loading(exp_ID, "both"))
     print(loading(exp_ID, 0, brain_areas))
-    print(loading(exp_ID, 1, brain_areas))
     print(loading(exp_ID, "both", brain_areas))
+    print(loading(exp_ID, "both", brain_areas)[2])

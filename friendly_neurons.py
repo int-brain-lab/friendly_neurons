@@ -40,6 +40,8 @@ def community_detection(
     user_start="trial_start",
     user_end="trial_end",
     region_list=[],
+    difficulty=[-1,1],
+    percentage= 1,
     data=None
     
 ):
@@ -94,7 +96,7 @@ def community_detection(
     else: 
         spikes, clusters, trials, locations = data
         
-    starts, ends = section_trial(user_start, user_end, trials, feedbackType)
+    starts, ends = section_trial(user_start, user_end, trials, feedbackType , difficulty, percentage)
 
     spikes_interval, clusters_interval = spp.interval_selection(
         spikes, clusters, starts, ends
@@ -129,7 +131,7 @@ def community_detection(
     return partition, partition_dictionary, region_dict, locations
 
 
-def section_trial(user_start, user_end, trials, feedbackType):
+def section_trial(user_start, user_end, trials, feedbackType, difficulty,percentage):
     """
     Function:
     The function connects with the database and gets the objects from that experiment
@@ -148,6 +150,8 @@ def section_trial(user_start, user_end, trials, feedbackType):
     """
     starts = None
     ends = None
+
+    
     if user_start == "trial_start":
         starts = trials["intervals"][:, 0]
     elif user_start in trials:
@@ -161,14 +165,30 @@ def section_trial(user_start, user_end, trials, feedbackType):
         ends = trials[user_end]
     else:
         raise Exception("Non possible ends.")
+
+    diff_trials = trials["trials_stim_contrast"]
+    fbTypes = trials["feedbackType"]
+
+    temp_indices_diff_1 = np.where( diff_trials >= difficulty[0])[0]
+    temp_indices_diff_2 = np.where(  diff_trials <= difficulty[1])[0]
+    temp_indices_diff=np.intersect1d( temp_indices_diff_1, temp_indices_diff_2)
+    num_trials= np.max(trials["trial_id"])
+    max_trial= int(num_trials*percentage)
+
     if feedbackType == None:
-        return starts, ends
-    else:
-        fbTypes = trials["feedbackType"]
-        temp_indices = np.where(fbTypes == feedbackType)[0]
-        starts = starts[temp_indices]
-        ends = ends[temp_indices]
-        return starts, ends
+        temp_indices=temp_indices_diff
+    else: 
+        
+        temp_indices_f=np.where(fbTypes==feedbackType )[0]
+        temp_indices=np.intersect1d( temp_indices_diff, temp_indices_f)
+
+
+    temp_indices=temp_indices[temp_indices <= max_trial]
+    starts = starts[temp_indices]
+    ends = ends[temp_indices]
+    
+    
+    return starts, ends
 
 
 def visualization(neuron_graph, partition):
@@ -266,6 +286,7 @@ if __name__ == "__main__":
 
 
     ### Single Probe Three Time Periods ###
+    
     print(
         community_detection(
             exp_ID,
@@ -273,6 +294,8 @@ if __name__ == "__main__":
             probe=0,
             user_start="trial_start",
             user_end="stimOn_times",
+            
+            
         )
     )
 
@@ -282,8 +305,62 @@ if __name__ == "__main__":
             visual=True,
             probe=0,
             user_start="trial_start",
+            user_end="stimOn_times",
+            difficulty=[0,1], 
+            percentage=0.5
+        )
+    )
+
+    print(
+        community_detection(
+            exp_ID,
+            visual=True,
+            probe=0,
+            user_start="trial_start",
+            user_end="stimOn_times",           
+            percentage=0.5,
+            
+        )
+    )
+
+
+    print(
+        community_detection(
+            exp_ID,
+            visual=True,
+            probe=0,
+            user_start="trial_start",
             feedbackType=1,
             user_end="stimOn_times",
+            difficulty=[0,1], 
+            
+        )
+    )
+
+    
+    print(
+        community_detection(
+            exp_ID,
+            visual=True,
+            probe=0,
+            user_start="trial_start",
+            feedbackType=1,
+            user_end="stimOn_times",
+            difficulty=[0,1], 
+            percentage=0.5
+
+        )
+    )
+    
+    print(
+        community_detection(
+            exp_ID,
+            visual=True,
+            probe=0,
+            user_start="trial_start",
+            feedbackType=1,
+            user_end="stimOn_times",
+            percentage=0.5
         )
     )
     print(
