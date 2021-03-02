@@ -1,12 +1,14 @@
 
 
 
-from ibl_pipeline import subject, acquisition, ephys, histology
+
 from tqdm import tqdm
 import datajoint as dj
 import numpy as np 
 import matplotlib.pyplot as plt
+from ibl_pipeline import subject, acquisition, ephys, histology
 import random
+
 from uuid import UUID 
 import datetime
 import igraph as ig 
@@ -538,7 +540,7 @@ if __name__ == "__main__":
     #['193fe7a8-4eb5-4f3e-815a-0c45864ddd77', 'exp17']]
     
     for k in expIDs:
-        try: 
+        #try: 
 
             i=k[0]
             print(k[1])
@@ -582,7 +584,7 @@ if __name__ == "__main__":
             
 
             #input("Enter your value: ") 
-        except:
+        #except:
             print(k[1] +" did not work")
 
     

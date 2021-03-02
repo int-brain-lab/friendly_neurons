@@ -1,3 +1,7 @@
 {
+<<<<<<< Updated upstream
     "python.pythonPath": "C:\\Users\\mitadm\\.conda\\envs\\iblenv\\python.exe"
+=======
+    "python.pythonPath": "c:\\users\\mitadm\\.conda\\envs\\iblenv\\python.exe"
+>>>>>>> Stashed changes
 }
